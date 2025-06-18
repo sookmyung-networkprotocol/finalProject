@@ -6,13 +6,16 @@
 #define MODE_1               2
 #define DAY                  3
 #define VOTE                 4
-#define MAFIA                5
-#define DOCTOR               6
-#define POLICE               7
-#define MODE_2               8
-#define OVER                 9
+#define NIGHT                5
+#define MODE_2               6
+
+#define OVER                 7 
+//FSM state -------------------------------------------------
+
 
 extern int change_state;
+#define NUM_PLAYERS 4
+#define NUM_ROLES 4
 
 // 역할 정의
 typedef enum {
@@ -27,12 +30,14 @@ typedef struct {
     uint8_t id;            // 게스트 ID
     Role role;             // 역할
     bool isAlive;          // 생존 여부
-    int8_t sentVoteId;     // 투표한 대상 ID (-1: 투표 안함)
+    int8_t Voted;          // 받은 표 수
 } Player;
 
 // extern
 extern Player players[4];
 
+// 플레이어 ID 목록
+extern Player players[NUM_PLAYERS]; 
 
 // 초기화 함수
 void initPlayer(Player* p, uint8_t id, Role role);
