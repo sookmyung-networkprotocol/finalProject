@@ -628,8 +628,6 @@ void L3_FSMrun(void)
                 } else if (myId == 1) {
                    
                     main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
-
-
                 }
                 else {
 
@@ -638,8 +636,22 @@ void L3_FSMrun(void)
                     pc.printf("내 역할은 %s입니다.\n", myRoleName);
                     pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
                     
+                    // 살았으면
+                    if (!idead) {
 
-                    main_state = NIGHT;
+                        if (strcmp(myRoleName, "Mafia") == 0)
+                            main_state = MAFIA;
+                        else if (strcmp(myRoleName, "Police") == 0)
+                            main_state = POLICE;
+                        else if (strcmp(myRoleName, "Doctor") == 0)
+                            main_state = DOCTOR;
+                        else if (strcmp(myRoleName, "Citizen") == 0)
+                            main_state = NIGHT;
+
+                    } else { // 죽었으면
+                        main_state = NIGHT;
+                    }
+
 
                 }
 
@@ -654,6 +666,24 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
+            main_state = DAY;
+            break;
+
+        case MAFIA:
+            // 대기 
+            pc.printf("\r\n\n마피아 시간이 되었습니다.\n\n\n");
+            main_state = DAY;
+            break;
+
+        case POLICE:
+            // 대기 
+            pc.printf("\r\n\n경찰 시간이 되었습니다.\n\n\n");
+            main_state = DAY;
+            break;
+
+        case DOCTOR:
+            // 대기 
+            pc.printf("\r\n\n의사 시간이 되었습니다.\n\n\n");
             main_state = DAY;
             break;
 
