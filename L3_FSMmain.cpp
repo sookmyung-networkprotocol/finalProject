@@ -351,6 +351,7 @@ void L3_FSMrun(void)
                             currentSendIndex = 0;
                             waitingAck = false;
                             waitingHostInput = false;
+
                         }
                     } else {
                         pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.");
@@ -505,6 +506,13 @@ void L3_FSMrun(void)
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     uint8_t size = L3_LLI_getSize();
 
+                    // 테스트
+                    pc.printf("\r\n[aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
+                    
                     if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
                         pc.printf("\r\nACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
                         waitingAck = false;
