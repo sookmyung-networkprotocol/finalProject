@@ -567,7 +567,7 @@ void L3_FSMrun(void)
             }
 
             // 5. 게스트 - 투표 결과 수신 및 ACK 전송
-            if (myId != 1 && change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+            if (myId != 1 && change_state < 2 && L3_event_checkEventFlag(L3_event_msgRcvd))  {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
