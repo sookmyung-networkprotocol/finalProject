@@ -504,7 +504,7 @@ void L3_FSMrun(void)
                     if (num_mafia == 0) {
                         strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
                         gameOver = true;
-                    } else if (num_citizen <= num_mafia) {
+                    } else if (num_citizen < num_mafia) {
                         strcat(msgStr, "\n💀 마피아 승리! 게임 종료.");
                         gameOver = true;
                     } else {
