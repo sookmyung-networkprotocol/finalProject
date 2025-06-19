@@ -440,76 +440,73 @@ void L3_FSMrun(void)
 
             // 4. 투표 결과 전송 단계 (호스트)
             if (myId == 1 && change_state == 2) {
-                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
-                    int destId = aliveIDs[currentSendIndex];
-                    msgStr[0] = '\0';
+                static char msgStr[512]; // 결과 메시지 (한 번만 구성)
+                static bool msgGenerated = false;
+                static int currentSendIndex = 0;
+                static bool waitingAck = false;
+                static bool waitingHostInput = false;
 
-                    // 1. 기본 득표 결과 정리
-                    sprintf(msgStr, "투표 결과: ");
-                    for (int i = 0; i < aliveCount; i++) {
-                        int playerId = aliveIDs[i];
-                        char idStr[32];
-                        sprintf(idStr, "[%d: %d표] ", playerId, voteResults[playerId]);
-                        strcat(msgStr, idStr);
+                if (!msgGenerated) {
+                    // 메시지 구성 시작
+                    msgStr[0] = '\0';
+                    strcat(msgStr, "투표 결과: ");
+
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].isAlive) {
+                            char buf[32];
+                            sprintf(buf, "[%d: %d표] ", players[i].id, voteResults[players[i].id]);
+                            strcat(msgStr, buf);
+                        }
                     }
 
-                    // 2. 최대 득표자 계산
+                    // 최다 득표자 계산
                     int maxVotes = 0;
                     int maxVotedId = -1;
                     bool tie = false;
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        int id = players[i].id;
+                        if (!players[i].isAlive) continue;
 
-                    for (int i = 0; i < aliveCount; i++) {
-                        int id = aliveIDs[i];
                         if (voteResults[id] > maxVotes) {
                             maxVotes = voteResults[id];
                             maxVotedId = id;
-
-                            // 💀 플레이어 ID 기준으로 죽음 처리
-                            for (int j = 0; j < NUM_PLAYERS; j++) {
-                                if (players[j].id == id) {
-                                    players[j].isAlive = false;  // 정확한 플레이어 객체 수정
-                                    dead[j] = true;
-                                    break;
-                                }
-                            }
-
                             tie = false;
-                        } else if (voteResults[id] == maxVotes && maxVotes != 0 && id != maxVotedId) {
+                        } else if (voteResults[id] == maxVotes && id != maxVotedId) {
                             tie = true;
                         }
                     }
 
-                    // 3. 투표 처리 결과 메시지 추가
+                    // 투표 결과 메시지 추가
                     if (!tie && maxVotedId != -1) {
                         strcat(msgStr, "\n💀 ");
-                        char killStr[32];
-                        sprintf(killStr, "%d번 플레이어가 처형되었습니다.", maxVotedId);
-                        strcat(msgStr, killStr);
-                        
+                        char killBuf[64];
+                        sprintf(killBuf, "%d번 플레이어가 처형되었습니다.", maxVotedId);
+                        strcat(msgStr, killBuf);
 
+                        // 실제 제거 처리
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].id == maxVotedId) {
+                                players[i].isAlive = false;
+                                break;
+                            }
+                        }
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
                     }
 
-                    // 4. 생존 마피아/시민 수 계산
+                    // 생존 마피아/시민 수 계산
                     int num_mafia = 0;
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (dead[i]) continue;  // ❗죽은 사람은 제외, 살아있는 사람만 체크
+                        if (!players[i].isAlive) continue;
 
-                        if (players[i].role == ROLE_MAFIA) {
+                        if (players[i].role == ROLE_MAFIA)
                             num_mafia++;
-                            pc.printf("🧟 생존 마피아 ID: %d\r\n", players[i].id);
-                        } else {
+                        else
                             num_citizen++;
-                            pc.printf("😀 생존 시민 ID: %d\r\n", players[i].id);
-                        }
                     }
 
-                    pc.printf("생존자 수 - 마피아: %d, 시민: %d\r\n", num_mafia, num_citizen);
-
-
-                    // 5. 게임 결과 추가
+                    // 게임 종료 여부 판단
                     if (num_mafia == 0) {
                         strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
                         gameOver = true;
@@ -520,51 +517,52 @@ void L3_FSMrun(void)
                         strcat(msgStr, "\n☀️ 낮으로 넘어갑니다.");
                     }
 
-                    // 6. 최종 메시지 전송
-                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\r\n[Host] %d번 플레이어에게 투표 결과 전송: %s\n", destId, msgStr);
-
-                    waitingAck = true;
+                    msgGenerated = true;
                 }
 
+                // 메시지 전송
+                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
+                    int destId = aliveIDs[currentSendIndex];
+                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
+                    pc.printf("\n[Host] %d번 플레이어에게 투표 결과 전송: %s\n", destId, msgStr);
+                    waitingAck = true;
+                }
 
                 // ACK 수신 처리
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     uint8_t size = L3_LLI_getSize();
-                    
+
                     if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
-                        pc.printf("\r\nACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
+                        pc.printf("ACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
                         waitingAck = false;
                         waitingHostInput = true;
-                        pc.printf("\r\n다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
+                        pc.printf("다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
                     }
 
                     L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
 
-                // Host 입력 대기 및 처리
+                // HOST 입력 처리
                 if (waitingHostInput && pc.readable()) {
                     char c = pc.getc();
                     if (c == '1') {
                         currentSendIndex++;
                         waitingHostInput = false;
-                        pc.printf("\r\n✅ 다음 플레이어로 이동합니다.\n");
+                        pc.printf("✅ 다음 플레이어로 이동합니다.\n");
 
                         if (currentSendIndex >= aliveCount) {
-                            pc.printf("\r\n✅ 모든 투표 결과 전송 완료! 최종 결과:\n");
-                           for (int i = 0; i < aliveCount; i++) {
-                                int id = aliveIDs[i];
-                                pc.printf("Player %d: %d표\n", id, voteResults[id]);
-                            }
-
-                            change_state = 3;  // 투표 종료 상태
+                            pc.printf("✅ 모든 투표 결과 전송 완료!\n");
+                            msgGenerated = false;
+                            currentSendIndex = 0;
+                            change_state = 3;
                         }
                     } else {
-                        pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.\n");
+                        pc.printf("❗ '1'을 입력해야 진행됩니다.\n");
                     }
                 }
             }
+
 
             // 5. 게스트 - 투표 결과 수신 및 ACK 전송
             if (myId != 1 && change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd))  {
@@ -849,10 +847,75 @@ void L3_FSMrun(void)
 
         case OVER:
         {
-            change_state = -1;
-            main_state = L3STATE_IDLE;
+            static bool waitingAck = false;
+            static bool waitingHostInput = false;
+            static int currentSendIndex = 0;
+            static char endMsg[] = "🔚 게임이 종료되었습니다. 수고하셨습니다.";
+
+            if (myId == 1 && currentSendIndex < NUM_PLAYERS) {
+                if (!waitingAck && !waitingHostInput) {
+                    int destId = players[currentSendIndex].id;
+                    if (players[currentSendIndex].isAlive) {
+                        L3_LLI_dataReqFunc((uint8_t*)endMsg, strlen(endMsg), destId);
+                        pc.printf("[HOST] %d번 플레이어에게 게임 종료 메시지 전송\n", destId);
+                        waitingAck = true;
+                    } else {
+                        // 죽은 사람에게는 전송 생략 (혹은 보내도 됨)
+                        currentSendIndex++;
+                    }
+                }
+
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+
+                    if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
+                        pc.printf("ACK 수신됨 (플레이어 ID: %d)\n", players[currentSendIndex].id);
+                        waitingAck = false;
+                        waitingHostInput = true;
+                        pc.printf("다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
+                    }
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+
+                if (waitingHostInput && pc.readable()) {
+                    char c = pc.getc();
+                    if (c == '1') {
+                        currentSendIndex++;
+                        waitingHostInput = false;
+                        pc.printf("✅ 다음 플레이어로 이동합니다.\n");
+
+                        if (currentSendIndex >= NUM_PLAYERS) {
+                            pc.printf("✅ 모든 플레이어에게 게임 종료 메시지 전송 완료!\n");
+                            change_state = -1;
+                            main_state = L3STATE_IDLE;  // 종료 또는 재시작 대기
+                        }
+                    } else {
+                        pc.printf("❗ '1'을 입력해야 진행됩니다.\n");
+                    }
+                }
+            }
+
+            if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
+
+                pc.printf("🔚 [게스트 %d] 게임 종료 메시지 수신: %.*s\n", myId, size, dataPtr);
+
+                // ACK 응답
+                const char ack[] = "ACK";
+                L3_LLI_dataReqFunc((uint8_t*)ack, sizeof(ack) - 1, 1);
+                pc.printf("[게스트 %d] ACK 전송 완료\n", myId);
+
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                change_state = -1;
+                main_state = L3STATE_IDLE;
+            }
+
             break;
         }
+
 
         default :
             break;
