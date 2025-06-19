@@ -469,13 +469,6 @@ void L3_FSMrun(void)
                         sprintf(killStr, "%d번 플레이어가 처형되었습니다.", maxVotedId);
                         strcat(msgStr, killStr);
 
-                        // 실제 제거 처리
-                        for (int i = 0; i < NUM_PLAYERS; i++) {
-                            if (players[i].id == maxVotedId) {
-                                players[i].isAlive = false;
-                                break;
-                            }
-                        }
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
                     }
