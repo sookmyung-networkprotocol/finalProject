@@ -19,7 +19,7 @@ bool waitingAck = false;     // ACK 대기 여부
 //FSM state -------------------------------------------------
 #define L3STATE_IDLE                0
 
-#define NUM_PLAYERS 10
+#define NUM_PLAYERS 4
 static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
 
 
@@ -606,10 +606,12 @@ void L3_FSMrun(void)
                 if (gameOver) {
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
                 } else if (myId == 1) {
-                    main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
-
+                   
                     // 💀 실제 처형 처리 추가
                     dead[maxVotedId] = true;  // 해당 플레이어를 죽음 처리
+
+                    main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
+
 
                 }
                 else {
@@ -645,7 +647,7 @@ void L3_FSMrun(void)
             
             for (int i = 0; i < 4; i++) {
             pc.printf("\r\nPlayer %d - ID: %d, Role: %s, Alive: %d\n\n", 
-                    i, players[i].id, getRoleName(players[i].role), players[i].isAlive);
+                    i, players[i].id, getRoleName(players[i].role), dead[i]);
             }
 
             main_state = OVER;
