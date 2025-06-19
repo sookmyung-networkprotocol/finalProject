@@ -16,6 +16,8 @@ int currentSendIndex = 0;    // 현재 전송 대상 플레이어 인덱스
 bool waitingAck = false;     // ACK 대기 여부
 int doctorTarget = -1;
 
+static bool waitingAck = false;
+static bool isMafiaActive = false;
 
 //FSM state -------------------------------------------------
 #define L3STATE_IDLE                0
