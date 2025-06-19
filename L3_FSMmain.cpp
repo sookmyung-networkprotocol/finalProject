@@ -685,7 +685,7 @@ void L3_FSMrun(void)
 
 
         case MAFIA: {
-            static bool waitingAck = false;
+            bool waitingAck = false;
 
             // 1. 호스트 - 마피아 시간 진입
             if (myId == 1 && change_state == 0) {
@@ -712,6 +712,7 @@ void L3_FSMrun(void)
                     break;
                 }
 
+                pc.printf("%d", waitingAck);
                 if (!waitingAck) {
                     msgStr[0] = '\0';
                     sprintf(msgStr, "죽일 사람을 투표하세요. 본인을 제외한 ID 중 선택: ");
