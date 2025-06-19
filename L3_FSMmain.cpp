@@ -585,7 +585,7 @@ void L3_FSMrun(void)
 
 
             // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
-            if (change_state == 3 && voteDoneCount == aliveCount) {
+            if (change_state == 3) {
                 voteDoneCount = 0;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     voteResults[i] = 0;
