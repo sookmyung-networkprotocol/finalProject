@@ -52,5 +52,3 @@ void createPlayers();
 
 // 역할 문자열 반환 함수
 const char* getRoleName(Role r);
-
-int findPlayerIndexById(int id);

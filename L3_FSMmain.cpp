@@ -750,15 +750,11 @@ void L3_FSMrun(void)
                     // 경찰에게 결과 전송
                     char resultMsg[100];
 
-                    int playerIndex = findPlayerIndexById(targetId);
-                    if (playerIndex != -1) {
-                        sprintf(resultMsg, "🕵️ 조사 결과: ID %d의 역할은 %s입니다.",
-                                targetId,
-                                getRoleName(players[playerIndex].role));
-                        L3_LLI_dataReqFunc((uint8_t*)resultMsg, strlen(resultMsg), policeId);
-                        pc.printf("[HOST] 경찰에게 조사 결과 전송 완료\n");
-                    } else {
-                        pc.printf("❌ 유효하지 않은 ID: %d\n", targetId);
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].id == targetId) {
+                            sprintf(resultMsg, "🕵️ 조사 결과: ID %d의 역할은 %s입니다.", targetId, getRoleName(players[i].role));
+                            break;
+                        }
                     }
 
 
