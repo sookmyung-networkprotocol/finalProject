@@ -740,14 +740,18 @@ void L3_FSMrun(void)
                 }
             }
 
-            // 2. Host: 경찰의 응답 수신 → 역할 공개
+            // 2. Host: 경찰의 응답 수신 → 역할 조회 후 경찰에게 전송
             if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 int targetId = atoi((char*)dataPtr);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
 
                 if (targetId >= 0 && targetId < NUM_PLAYERS) {
-                    pc.printf("🕵️ 경찰이 조사한 ID %d의 역할은: %s\n", targetId, getRoleName(players[targetId].role));
+                    // 경찰에게 결과 전송
+                    char resultMsg[100];
+                    sprintf(resultMsg, "🕵️ 조사 결과: ID %d의 역할은 %s입니다.", targetId, getRoleName(players[targetId].role));
+                    L3_LLI_dataReqFunc((uint8_t*)resultMsg, strlen(resultMsg), policeId);
+                    pc.printf("[HOST] 경찰에게 조사 결과 전송 완료\n");
                 } else {
                     pc.printf("❌ 잘못된 ID 수신: %d\n", targetId);
                 }
@@ -755,7 +759,7 @@ void L3_FSMrun(void)
                 change_state = 2;
             }
 
-            // 3. 게스트: 경찰이면 메시지 수신 → ID 입력 → 전송
+            // 3. 게스트: 경찰이면 메시지 수신 → ID 입력 or 결과 출력
             if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
                 L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 0)
             {
@@ -763,31 +767,39 @@ void L3_FSMrun(void)
                 uint8_t size = L3_LLI_getSize();
                 pc.printf("[경찰] 메시지 수신: %.*s\n", size, dataPtr);
 
-                int inputId = -1;
-                bool valid = false;
-                while (!valid) {
-                    pc.printf("[경찰] 조사할 ID 입력: ");
-                    while (!pc.readable());
-                    char ch = pc.getc();
-                    pc.printf("%c", ch);
+                // 조사 대상 ID 요청 메시지인 경우
+                if (strstr((char*)dataPtr, "조사할") != NULL) {
+                    int inputId = -1;
+                    bool valid = false;
+                    while (!valid) {
+                        pc.printf("[경찰] 조사할 ID 입력: ");
+                        while (!pc.readable());
+                        char ch = pc.getc();
+                        pc.printf("%c", ch);
 
-                    if (ch >= '0' && ch <= '9') {
-                        inputId = ch - '0';
-                        valid = true;
-                    } else {
-                        pc.printf("\n❗ 숫자만 입력하세요.");
+                        if (ch >= '0' && ch <= '9') {
+                            inputId = ch - '0';
+                            valid = true;
+                        } else {
+                            pc.printf("\n❗ 숫자만 입력하세요.");
+                        }
                     }
+
+                    char reply[4];
+                    sprintf(reply, "%d", inputId);
+                    L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
+                    pc.printf("[경찰] %d번을 조사하고 Host에 전송 완료\n", inputId);
+                }
+                // 조사 결과 메시지인 경우
+                else if (strstr((char*)dataPtr, "조사 결과") != NULL) {
+                    pc.printf("[경찰] %.*s\n", size, dataPtr); // 결과 출력
                 }
 
-                char reply[4];
-                sprintf(reply, "%d", inputId);
-                L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
-                pc.printf("[경찰] %d번을 조사하고 Host에 전송 완료\n", inputId);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
                 change_state = 2;
             }
 
-            // 4. 상태 전환: 단계로 이동
+            // 4. 상태 전환: 낮 단계로 이동
             if (change_state == 2) {
                 main_state = MODE_2;
                 change_state = 0;
