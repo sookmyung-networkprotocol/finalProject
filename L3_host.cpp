@@ -14,6 +14,7 @@ void initPlayer(Player* p, uint8_t id, Role role) {
     p->role = role;
     p->isAlive = true;
     p->Voted = 0;
+    p->sentVoteId = -1; 
 }
 
 // 랜덤 역할 배정 
