@@ -792,8 +792,9 @@ void L3_FSMrun(void)
                 sprintf(ackMsg, "%d", voteTo);
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                bool sendOk = L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료 (%s)\n", voteTo, sendOk ? "성공" : "실패");
+                L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
+                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
+
 
                 change_state = 2;
             }
