@@ -684,147 +684,139 @@ void L3_FSMrun(void)
             break;
 
 
-        case MAFIA: {
+        case MAFIA:
+        {
             static bool waitingAck = false;
+            static int mafiaId = -1;
+            static bool mafiaMessageSent = false;
+            static int aliveIDs[NUM_PLAYERS];
+            static int aliveCount = 0;
 
-            // 1. 호스트 - 마피아 시간 진입
+            // 1. Host: 마피아에게 메시지 전송
             if (myId == 1 && change_state == 0) {
-                pc.printf("\r\n\n🕵️ [HOST] 마피아 시간 진입\n");
-
-                int aliveIDs[NUM_PLAYERS];
-                int aliveCount = 0;
-                int destId = -1;
+                // 살아있는 마피아 찾기
+                mafiaId = -1;
+                aliveCount = 0;
 
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (!dead[i]) {
-                        aliveIDs[aliveCount++] = players[i].id;
-                        pc.printf("🧍‍♂️ [HOST] 생존자: ID %d\n", players[i].id);
-                    }
-                    if (players[i].role == ROLE_MAFIA && !dead[i]) {
-                        destId = players[i].id;
-                        pc.printf("🎯 [HOST] 마피아 ID 확인: %d\n", destId);
+                    if (!players[i].isAlive) continue;
+                    aliveIDs[aliveCount++] = players[i].id;
+
+                    if (players[i].role == ROLE_MAFIA) {
+                        mafiaId = players[i].id;
                     }
                 }
 
-                if (destId == -1) {
-                    pc.printf("\r\n❗ [HOST] 살아있는 마피아 없음, 경찰 단계로 넘어감");
-                    main_state = POLICE;
+                if (mafiaId == -1) {
+                    pc.printf("[HOST] 살아있는 마피아 없음. DOCTOR 단계로 넘어감.\n");
+                    main_state = DOCTOR;
                     break;
                 }
 
-                if (!waitingAck) {
-
-                    msgStr[0] = '\0';
-                    sprintf(msgStr, "죽일 사람을 투표하세요. 본인을 제외한 ID 중 선택: ");
-                    for (int i = 0; i < aliveCount; i++) {
-
-                        if (aliveIDs[i] != destId) {
-                            char idStr[4];
-                            sprintf(idStr, "%d ", aliveIDs[i]);
-                            strcat(msgStr, idStr);
-                        } else {
-                            //pc.printf("\r\n[DEBUG] %d == destId, 생략됨", aliveIDs[i]);
-                        }
+                // 메시지 구성 및 전송
+                char msgStr[64] = "죽일 ID를 선택하세요: ";
+                for (int i = 0; i < aliveCount; i++) {
+                    if (aliveIDs[i] != mafiaId) {
+                        char idStr[4];
+                        sprintf(idStr, "%d ", aliveIDs[i]);
+                        strcat(msgStr, idStr);
                     }
-
-                    pc.printf("\r\n[DEBUG] 최종 전송 메시지: %s", msgStr);
-
-                    //L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\r\n📤 [HOST] %d번 마피아에게 메시지 전송: %s", destId, msgStr);
-
-                    waitingAck = true;
                 }
 
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
-                    int voteTo = atoi((char*)dataPtr);
+                L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), mafiaId);
+                pc.printf("[HOST] %d번 마피아에게 메시지 전송: %s\n", mafiaId, msgStr);
 
-                    pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
-
-                    waitingAck = false;
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
-                    change_state = 2;
-                }
+                waitingAck = true;
+                mafiaMessageSent = true;
+                change_state = 1;
             }
 
-            // 2. 게스트 마피아
-            if (myId != 1 && change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+            // 2. Host: 마피아 응답 수신 처리
+            if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                int selectedId = atoi((char*)dataPtr);
+
+                pc.printf("[HOST] 마피아가 %d번을 선택했습니다.\n", selectedId);
+
+                // 마피아 타겟 저장
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id == mafiaId) {
+                        players[i].sentVoteId = selectedId;
+                        break;
+                    }
+                }
+
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                change_state = 2;
+            }
+
+            // 3. Guest(마피아): 타겟 입력 및 전송
+            if (myId != 1 && change_state == 0 &&
+                L3_event_checkEventFlag(L3_event_msgRcvd) &&
+                strcmp(myRoleName, "Mafia") == 0 && !idead)
+            {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                pc.printf("\r\n\n🕵️ [게스트 마피아] 마피아 시간 진입\n");
-                pc.printf("\r\n📨 [게스트] 메시지 수신: %.*s\n", size, dataPtr);
+                pc.printf("[Mafia] 타겟 선택 메시지 수신: %.*s\n", size, dataPtr);
 
+                // 유효 ID 파싱
                 int validIDs[NUM_PLAYERS];
-                int validIDCount = 0;
+                int validCount = 0;
+
                 for (int i = 0; i < size; i++) {
                     if (dataPtr[i] >= '0' && dataPtr[i] <= '9') {
                         int id = dataPtr[i] - '0';
                         if (id != myId) {
-                            validIDs[validIDCount++] = id;
-                            pc.printf("✅ [게스트] 유효 투표 대상 ID: %d\n", id);
+                            validIDs[validCount++] = id;
                         }
                     }
                 }
 
-                int valid = 0;
                 int voteTo = -1;
-
+                bool valid = false;
                 while (!valid) {
-                    pc.printf("\r\n📝 [게스트] 투표할 ID 입력 대기 중...\n");
+                    pc.printf("[Mafia] 죽일 ID를 입력하세요: ");
                     while (!pc.readable());
                     char ch = pc.getc();
                     pc.printf("%c", ch);
 
                     if (ch < '0' || ch > '9') {
-                        pc.printf("\r\n❗ [게스트] 숫자가 아닙니다.");
+                        pc.printf("\n❗ 숫자가 아닙니다.");
                         continue;
                     }
 
                     voteTo = ch - '0';
-
-                    if (voteTo == myId) {
-                        pc.printf("\r\n❗ [게스트] 자기 자신에게는 투표할 수 없습니다.");
-                        continue;
-                    }
-
-                    bool isValid = false;
-                    for (int i = 0; i < validIDCount; i++) {
+                    for (int i = 0; i < validCount; i++) {
                         if (validIDs[i] == voteTo) {
-                            isValid = true;
+                            valid = true;
                             break;
                         }
                     }
 
-                    if (!isValid) {
-                        pc.printf("\r\n❗ [게스트] 유효하지 않은 ID입니다.");
-                        continue;
+                    if (!valid) {
+                        pc.printf("\n❗ 유효하지 않은 ID입니다.");
                     }
-
-                    valid = 1;
                 }
 
-                char ackMsg[4];
-                sprintf(ackMsg, "%d", voteTo);
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
+                char reply[4];
+                sprintf(reply, "%d", voteTo);
+                L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
+                pc.printf("[Mafia] %d번을 죽이기로 선택하여 Host에 전송 완료\n", voteTo);
+
                 L3_event_clearEventFlag(L3_event_msgRcvd);
                 change_state = 2;
             }
 
-            // 3. 상태 전환
+            // 4. 상태 전환
             if (change_state == 2) {
-                pc.printf("\r\n🔄 [STATE] 마피아 단계 종료, 다음 상태로 전환\n");
-                if (myId == 1)
-                    main_state = POLICE;
-                else 
-                    main_state = NIGHT;
+                pc.printf("💤 MAFIA 단계 종료 → DOCTOR 단계로 전환\n");
+                change_state = 0;
+                main_state = DOCTOR;
             }
 
             break;
         }
-
 
         
         case MODE_2:
