@@ -31,7 +31,7 @@ static char myRoleName[16] = {0};
 static bool idead = false;
 
 //SDU (input)
-char msgStr[20];
+char msgStr[50];
 static uint8_t originalWord[1030];
 static uint8_t wordLen=0;
 
@@ -729,7 +729,7 @@ void L3_FSMrun(void)
 
                     pc.printf("\r\n[DEBUG] 최종 전송 메시지: %s", msgStr);
 
-                    //L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
+                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
                     pc.printf("\r\n📤 [HOST] %d번 마피아에게 메시지 전송: %s", destId, msgStr);
 
                     waitingAck = true;
