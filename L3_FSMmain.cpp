@@ -685,41 +685,29 @@ void L3_FSMrun(void)
 
 
         case MAFIA: {
-            pc.printf("\r\n\n🕵️ 마피아 시간이 되었습니다.\n\n\n");
+            static bool waitingAck = false;
 
-            // 1. 마피아 사망 시 바로 경찰 턴으로
-            if (myId == 1) {
-                bool mafiaDead = true;
-                for (int i = 0; i < 4; i++) {
-                    if (players[i].role == ROLE_MAFIA && !dead[i]) {
-                        mafiaDead = false;
-                        break;
-                    }
-                }
-                if (mafiaDead) {
-                    main_state = POLICE;
-                    break;
-                }
-            }
-
-            // 2. 호스트가 마피아에게 메시지 전송
+            // 1. 호스트 - 마피아 시간 진입
             if (myId == 1 && change_state == 0) {
+                pc.printf("\r\n\n🕵️ [HOST] 마피아 시간 진입\n");
+
                 int aliveIDs[NUM_PLAYERS];
                 int aliveCount = 0;
                 int destId = -1;
 
-                // 살아있는 ID 목록, 마피아 ID 찾기
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     if (!dead[i]) {
                         aliveIDs[aliveCount++] = players[i].id;
+                        pc.printf("🧍‍♂️ [HOST] 생존자: ID %d\n", players[i].id);
                     }
                     if (players[i].role == ROLE_MAFIA && !dead[i]) {
                         destId = players[i].id;
+                        pc.printf("🎯 [HOST] 마피아 ID 확인: %d\n", destId);
                     }
                 }
 
                 if (destId == -1) {
-                    pc.printf("\r\n❗ 살아있는 마피아가 없습니다.");
+                    pc.printf("\r\n❗ [HOST] 살아있는 마피아 없음, 경찰 단계로 넘어감");
                     main_state = POLICE;
                     break;
                 }
@@ -736,17 +724,16 @@ void L3_FSMrun(void)
                     }
 
                     L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\r\n[Host] %d번 마피아에게 투표 요청: %s", destId, msgStr);
+                    pc.printf("\r\n📤 [HOST] %d번 마피아에게 메시지 전송: %s", destId, msgStr);
                     waitingAck = true;
                 }
 
-                // 마피아 응답 수신
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     int fromId = L3_LLI_getSrcId();
                     int voteTo = atoi((char*)dataPtr);
 
-                    pc.printf("\r\n🗳️ %d번 마피아가 %d번에게 투표했습니다.", fromId, voteTo);
+                    pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
 
                     waitingAck = false;
                     L3_event_clearEventFlag(L3_event_msgRcvd);
@@ -754,14 +741,14 @@ void L3_FSMrun(void)
                 }
             }
 
-            // 3. 게스트 마피아 처리
+            // 2. 게스트 마피아
             if (myId != 1 && change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                pc.printf("\r\n📨 처형 메시지 수신: %.*s", size, dataPtr);
+                pc.printf("\r\n\n🕵️ [게스트 마피아] 마피아 시간 진입\n");
+                pc.printf("\r\n📨 [게스트] 메시지 수신: %.*s\n", size, dataPtr);
 
-                // 유효한 ID 추출
                 int validIDs[NUM_PLAYERS];
                 int validIDCount = 0;
                 for (int i = 0; i < size; i++) {
@@ -769,6 +756,7 @@ void L3_FSMrun(void)
                         int id = dataPtr[i] - '0';
                         if (id != myId) {
                             validIDs[validIDCount++] = id;
+                            pc.printf("✅ [게스트] 유효 투표 대상 ID: %d\n", id);
                         }
                     }
                 }
@@ -777,20 +765,20 @@ void L3_FSMrun(void)
                 int voteTo = -1;
 
                 while (!valid) {
-                    pc.printf("\r\n📝 투표할 플레이어 ID를 입력하세요: ");
+                    pc.printf("\r\n📝 [게스트] 투표할 ID 입력 대기 중...\n");
                     while (!pc.readable());
                     char ch = pc.getc();
                     pc.printf("%c", ch);
 
                     if (ch < '0' || ch > '9') {
-                        pc.printf("\r\n❗ 숫자가 아닙니다. 다시 입력하세요.");
+                        pc.printf("\r\n❗ [게스트] 숫자가 아닙니다.");
                         continue;
                     }
 
                     voteTo = ch - '0';
 
                     if (voteTo == myId) {
-                        pc.printf("\r\n❗ 자신에게는 투표할 수 없습니다.");
+                        pc.printf("\r\n❗ [게스트] 자기 자신에게는 투표할 수 없습니다.");
                         continue;
                     }
 
@@ -803,23 +791,24 @@ void L3_FSMrun(void)
                     }
 
                     if (!isValid) {
-                        pc.printf("\r\n❗ 해당 ID는 유효한 투표 대상이 아닙니다. 다시 입력하세요.");
+                        pc.printf("\r\n❗ [게스트] 유효하지 않은 ID입니다.");
                         continue;
                     }
 
                     valid = 1;
                 }
 
-                // 결과 전송
                 char ackMsg[4];
                 sprintf(ackMsg, "%d", voteTo);
                 L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
+                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
                 change_state = 2;
             }
 
-            // 상태 전환
+            // 3. 상태 전환
             if (change_state == 2) {
+                pc.printf("\r\n🔄 [STATE] 마피아 단계 종료, 다음 상태로 전환\n");
                 if (myId == 1)
                     main_state = POLICE;
                 else 
@@ -827,8 +816,8 @@ void L3_FSMrun(void)
             }
 
             break;
-
         }
+
 
         
         case MODE_2:
