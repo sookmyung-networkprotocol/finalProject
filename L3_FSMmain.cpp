@@ -742,12 +742,6 @@ void L3_FSMrun(void)
             }
 
             // 2. 게스트 마피아
-
-            if (myId!=1) {
-                pc.printf("나의 상태: %d", change_state);
-                change_state == 0;
-            }
-
             if (myId != 1 && change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
