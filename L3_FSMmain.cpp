@@ -243,42 +243,51 @@ void L3_FSMrun(void)
         
         }
         
-        case VOTE:
+       case VOTE:
         {
+            static int voteDoneCount = 0;  // 투표 완료한 사람 수
+            static int aliveCount = 0;      // 살아있는 사람 수
+            
+            #define MAX_PLAYER_ID 9
+            static int voteResults[MAX_PLAYER_ID + 1] = {0};
             static bool waitingAck = false;
             static bool waitingHostInput = false;
             static int currentSendIndex = 0;
             static int aliveIDs[NUM_PLAYERS];
-            static int aliveCount = 0;
             static bool voteCompleted[NUM_PLAYERS] = {false};
-            static int voteResults[NUM_PLAYERS] = {0}; // 표 수 카운트
-            static char msgStr[64];
+
+            static char msgStr[128]; // 메시지 버퍼 약간 키움
             
-            // 1. 초기화: 호스트가 살아있는 목록 구성
+            // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
             if (myId == 1 && change_state == 0) {
                 aliveCount = 0;
+                voteDoneCount = 0;
+                currentSendIndex = 0;
+                waitingAck = false;
+                waitingHostInput = false;
+
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     if (players[i].isAlive) {
                         aliveIDs[aliveCount++] = players[i].id;
-                        players[i].Voted = 0;
-                        voteCompleted[i] = false;
-                        voteResults[i] = 0;
                     }
+                    players[i].Voted = 0;
+                    voteCompleted[i] = false;
+                    voteResults[i] = 0;
                 }
 
                 pc.printf("\r\n📢 투표를 시작합니다.\r\n");
                 pc.printf("\r\n🧍 살아있는 플레이어 목록:\r\n");
                 for (int i = 0; i < aliveCount; i++) {
-                    pc.printf("\r\nPlayer ID: %d", aliveIDs[i]);
+                    pc.printf("Player ID: %d ", aliveIDs[i]);
                 }
-                pc.printf("\r\n\r\n-----------------------------------------\r\n");
+                pc.printf("\r\n-----------------------------------------\r\n");
 
-                currentSendIndex = 0;
                 change_state = 1;
             }
 
-            // 2. 투표 메시지 전송 단계
+            // 2. 투표 메시지 전송 단계 (호스트)
             if (myId == 1 && change_state == 1) {
+                // 플레이어에게 투표 요청 메시지 전송
                 if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
                     int destId = aliveIDs[currentSendIndex];
                     msgStr[0] = '\0';
@@ -298,13 +307,19 @@ void L3_FSMrun(void)
                     waitingAck = true;
                 }
 
-                // 응답 수신 처리
+                // 플레이어로부터 투표 응답 수신 처리
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     int fromId = L3_LLI_getSrcId();
                     int voteTo = atoi((char*)dataPtr);
 
-                    voteResults[voteTo]++;
+                    // 투표 집계 
+                    if (voteTo >= 0 && voteTo <= MAX_PLAYER_ID) {
+                        voteResults[voteTo]++;
+                    }
+
+
+                    voteDoneCount++;
                     voteCompleted[currentSendIndex] = true;
 
                     pc.printf("\r\n🗳️ %d번 플레이어가 %d번에게 투표했습니다.", fromId, voteTo);
@@ -317,7 +332,7 @@ void L3_FSMrun(void)
                     L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
 
-                // 호스트가 1을 입력해야 다음 진행
+                // 호스트가 1 입력하면 다음 플레이어로 진행
                 if (waitingHostInput && pc.readable()) {
                     char c = pc.getc();
                     if (c == '1') {
@@ -325,14 +340,18 @@ void L3_FSMrun(void)
                         waitingHostInput = false;
                         pc.printf("\r\n✅ 다음 플레이어로 이동합니다.");
 
+                        // 모든 플레이어 투표 완료 시 상태 전환
                         if (currentSendIndex >= aliveCount) {
-                            pc.printf("\r\n\r\n✅ 모든 투표 완료! 결과:\r\n");
+                            pc.printf("\r\n✅ 모든 투표 완료! 결과:\r\n");
                             for (int i = 0; i < NUM_PLAYERS; i++) {
                                 if (players[i].isAlive) {
-                                    pc.printf("\r\nPlayer %d: %d votes", players[i].id, voteResults[players[i].id]);
+                                    pc.printf("Player %d: %d표\n", players[i].id, voteResults[players[i].id]);
                                 }
                             }
-                            change_state = 2; // 다음 상태로 전환
+                            change_state = 2;
+                            currentSendIndex = 0;
+                            waitingAck = false;
+                            waitingHostInput = false;
                         }
                     } else {
                         pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.");
@@ -340,85 +359,155 @@ void L3_FSMrun(void)
                 }
             }
 
-            // 3. 게스트 측: 메시지 수신 → 투표 입력 → 전송
-            if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-            uint8_t* dataPtr = L3_LLI_getMsgPtr();
-            uint8_t size = L3_LLI_getSize();
+            // 3. 게스트 측: 투표 요청 메시지 수신 → 투표 입력 → 전송
+            if (myId != 1 && change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
 
-            pc.printf("\r\n📨 투표 메시지 수신: %.*s", size, dataPtr);
+                pc.printf("\r\n📨 투표 메시지 수신: %.*s", size, dataPtr);
 
-            // 1. 메시지에서 ID 파싱
-            int validIDs[NUM_PLAYERS];
-            int validIDCount = 0;
+                // 유효한 투표 대상 ID 파싱
+                int validIDs[NUM_PLAYERS];
+                int validIDCount = 0;
+                for (int i = 0; i < size; i++) {
+                    if (dataPtr[i] >= '0' && dataPtr[i] <= '9') {
+                        int id = dataPtr[i] - '0';
+                        if (id != myId) {
+                            validIDs[validIDCount++] = id;
+                        }
+                    }
+                }
 
-            // 문자열 끝까지 탐색
-            for (int i = 0; i < size; i++) {
-                if (dataPtr[i] >= '0' && dataPtr[i] <= '9') {
-                    int id = dataPtr[i] - '0';
-                    // 자기 자신은 제외 (호스트가 보냈더라도 다시 한번 확인)
-                    if (id != myId) {
-                        validIDs[validIDCount++] = id;
+                int valid = 0;
+                int voteTo = -1;
+
+                while (!valid) {
+                    pc.printf("\r\n📝 투표할 플레이어 ID를 입력하세요: ");
+                    while (!pc.readable());
+                    char ch = pc.getc();
+                    pc.printf("%c", ch);
+
+                    if (ch < '0' || ch > '9') {
+                        pc.printf("\r\n❗ 숫자가 아닙니다. 다시 입력하세요.");
+                        continue;
+                    }
+
+                    voteTo = ch - '0';
+
+                    if (voteTo == myId) {
+                        pc.printf("\r\n❗ 자신에게는 투표할 수 없습니다.");
+                        continue;
+                    }
+
+                    bool isValid = false;
+                    for (int i = 0; i < validIDCount; i++) {
+                        if (validIDs[i] == voteTo) {
+                            isValid = true;
+                            break;
+                        }
+                    }
+
+                    if (!isValid) {
+                        pc.printf("\r\n❗ 해당 ID는 유효한 투표 대상이 아닙니다. 다시 입력하세요.");
+                        continue;
+                    }
+
+                    valid = 1;
+                }
+
+                // 투표 결과 전송 (Host = 1)
+                char ackMsg[4];
+                sprintf(ackMsg, "%d", voteTo);
+                L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+
+                change_state = 2;
+            }
+
+            // 4. 투표 결과 전송 단계 (호스트)
+            if (myId == 1 && change_state == 2) {
+                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
+                    int destId = aliveIDs[currentSendIndex];
+                    msgStr[0] = '\0';
+
+                    sprintf(msgStr, "투표 결과: ");
+                    for (int i = 0; i < aliveCount; i++) {
+                        int playerId = aliveIDs[i];
+                        char idStr[16];
+                        sprintf(idStr, "[%d: %d표] ", playerId, voteResults[playerId]);
+                        strcat(msgStr, idStr);
+                    }
+
+                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
+                    pc.printf("\r\n[Host] %d번 플레이어에게 투표 결과 전송: %s\n", destId, msgStr);
+
+                    waitingAck = true;
+                }
+
+                // ACK 수신 처리
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+
+                    if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
+                        pc.printf("\r\nACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
+                        waitingAck = false;
+                        waitingHostInput = true;
+                        pc.printf("\r\n다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
+                    }
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+
+                // Host 입력 대기 및 처리
+                if (waitingHostInput && pc.readable()) {
+                    char c = pc.getc();
+                    if (c == '1') {
+                        currentSendIndex++;
+                        waitingHostInput = false;
+                        pc.printf("\r\n✅ 다음 플레이어로 이동합니다.\n");
+
+                        if (currentSendIndex >= aliveCount) {
+                            pc.printf("\r\n✅ 모든 투표 결과 전송 완료! 최종 결과:\n");
+                           for (int i = 0; i < aliveCount; i++) {
+                                int id = aliveIDs[i];
+                                pc.printf("Player %d: %d표\n", id, voteResults[id]);
+                            }
+
+                            change_state = 3;  // 투표 종료 상태
+                        }
+                    } else {
+                        pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.\n");
                     }
                 }
             }
 
-            int valid = 0;
-            int voteTo = -1;
+            // 5. 게스트 - 투표 결과 수신 및 ACK 전송
+            if (myId != 1 && change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
 
-            while (!valid) {
-                pc.printf("\r\n📝 투표할 플레이어 ID를 입력하세요: ");
-                while (!pc.readable());
-                char ch = pc.getc();
-                pc.printf("\r\n%c", ch);
+                pc.printf("\r\n[게스트 %d] 수신 메시지: %.*s (길이: %d)\n", myId, size, dataPtr, size);
 
-                // 숫자 여부
-                if (ch < '0' || ch > '9') {
-                    pc.printf("\r\n❗ 숫자가 아닙니다. 다시 입력하세요.");
-                    continue;
-                }
+                // ACK 전송 (Host ID는 1로 고정)
+                const char ackMsg[] = "ACK";
+                L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
 
-                voteTo = ch - '0';
+                pc.printf("\r\n[게스트 %d] ACK 전송 완료\n", myId);
 
-                // 자기 자신 투표 금지 (이중 확인)
-                if (voteTo == myId) {
-                    pc.printf("\r\n❗ 자신에게는 투표할 수 없습니다.");
-                    continue;
-                }
+                L3_event_clearEventFlag(L3_event_msgRcvd);
 
-                // 유효 ID인지 검사
-                bool isValid = false;
-                for (int i = 0; i < validIDCount; i++) {
-                    if (validIDs[i] == voteTo) {
-                        isValid = true;
-                        break;
-                    }
-                }
-
-                if (!isValid) {
-                    pc.printf("\r\n❗ 해당 ID는 유효한 투표 대상이 아닙니다. 다시 입력하세요.");
-                    continue;
-                }
-
-                valid = 1;  // 유효 통과
+                change_state = 3;  // 투표 종료 상태로 변경
             }
 
-            // 투표 메시지 전송
-            char ackMsg[4];
-            sprintf(ackMsg, "%d", voteTo);
-            L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-            L3_event_clearEventFlag(L3_event_msgRcvd);
-            change_state = 2;
-        }
-
-
-
-
-            // 4. 모두 상태 전환
-            if (change_state == 2)
+            // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
+            if (change_state == 3 && voteDoneCount == aliveCount) {
                 main_state = DAY;
+            }
 
             break;
         }
+
 
 
         case NIGHT:
