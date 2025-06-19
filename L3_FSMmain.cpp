@@ -255,7 +255,7 @@ void L3_FSMrun(void)
             static int aliveIDs[NUM_PLAYERS];
             static bool voteCompleted[NUM_PLAYERS] = {false};
 
-            static char msgStr[128]; // 메시지 버퍼 약간 키움
+            static char msgStr[512]; // 메시지 버퍼 약간 키움
             
             // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
             if (myId == 1 && change_state == 0) {
