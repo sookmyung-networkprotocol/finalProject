@@ -11,7 +11,6 @@
 #define MAFIA                7
 #define DOCTOR               8
 #define POLICE               9
-#define MODE_2               10
 #define TYPING               11
 
 #define OVER                 12

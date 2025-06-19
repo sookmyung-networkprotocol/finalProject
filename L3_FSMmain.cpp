@@ -24,6 +24,9 @@ bool waitingAck = false;     // ACK 대기 여부
 static uint8_t main_state = L3STATE_IDLE; //protocol state
 static uint8_t prev_state = main_state;
 
+static char myRoleName[16] = {0};
+static bool idead = false;
+
 //SDU (input)
 char msgStr[20];
 static uint8_t originalWord[1030];
@@ -209,7 +212,12 @@ void L3_FSMrun(void)
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, dataPtr, size);
+                int len = size;
+                if (len > 15) len = 15;              // 최대 크기 제한
+                memcpy(myRoleName, dataPtr, len);    // 복사
+                myRoleName[len] = '\0';               // null 종료
+
+                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, myRoleName, size);
 
                 // ACK 전송
                 const char ackMsg[] = "ACK";
@@ -233,8 +241,6 @@ void L3_FSMrun(void)
             pc.printf("\r\n낮이 되었습니다.\n\n");
             // 단체 채팅 구현
 
-            players[0].isAlive = false;
-            players[1].isAlive = false;
             
             // 단체 채팅 끝난 후 모드 변경
             change_state = 0;
@@ -257,7 +263,9 @@ void L3_FSMrun(void)
             static int aliveIDs[NUM_PLAYERS];
             static bool voteCompleted[NUM_PLAYERS] = {false};
 
-            static char msgStr[128]; // 메시지 버퍼 약간 키움
+            static int maxVotedId = -1;
+
+            static char msgStr[512]; // 메시지 버퍼 약간 키움
             
             // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
             if (myId == 1 && change_state == 0) {
@@ -353,6 +361,7 @@ void L3_FSMrun(void)
                             currentSendIndex = 0;
                             waitingAck = false;
                             waitingHostInput = false;
+
                         }
                     } else {
                         pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.");
@@ -463,13 +472,6 @@ void L3_FSMrun(void)
                         sprintf(killStr, "%d번 플레이어가 처형되었습니다.", maxVotedId);
                         strcat(msgStr, killStr);
 
-                        // 실제 제거 처리
-                        for (int i = 0; i < NUM_PLAYERS; i++) {
-                            if (players[i].id == maxVotedId) {
-                                players[i].isAlive = false;
-                                break;
-                            }
-                        }
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
                     }
@@ -506,7 +508,7 @@ void L3_FSMrun(void)
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     uint8_t size = L3_LLI_getSize();
-
+                    
                     if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
                         pc.printf("\r\nACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
                         waitingAck = false;
@@ -563,7 +565,7 @@ void L3_FSMrun(void)
                 // 자기 자신이 죽었으면 상태 변경
                 if (killedId == myId) {
                     pc.printf("❗ 당신은 처형되었습니다.\n");
-                    players[myId].isAlive = false;
+                    idead = true;
                 }
 
                 // 게임 종료 메시지 확인
@@ -587,7 +589,7 @@ void L3_FSMrun(void)
 
 
             // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
-            if (change_state == 3 && voteDoneCount == aliveCount) {
+            if (change_state == 3) {
                 voteDoneCount = 0;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     voteResults[i] = 0;
@@ -599,34 +601,32 @@ void L3_FSMrun(void)
 
                 if (gameOver) {
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
-                } else {
-                    bool isDead = false;
-                    int myRole = -1;
+                } else if (myId == 1) {
+                    main_state = MAFIA;  // 2. 호스트는 무조건 마피아 상태
 
-                    // 내 생존 여부와 역할 확인
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (players[i].id == myId) {
-                            if (!players[i].isAlive) {
-                                isDead = true;
-                            }
-                            myRole = players[i].role;
-                            break;
-                        }
-                    }
+                    // 💀 실제 처형 처리 추가
+                    players[maxVotedId].isAlive = false;
+                }
+                else {
 
-                    if (isDead) {
-                        main_state = NIGHT;  // 2. 죽었으면 밤 상태
-                    } else if (myId == 1) {
-                        main_state = MAFIA;  // 3. 호스트는 무조건 마피아 상태
-                    } else if (myRole == ROLE_MAFIA) {
+                    // 테스트
+                    pc.printf("내 번호는 %d입니다.\n", myId);
+                    pc.printf("내 역할은 %s입니다.\n", myRoleName);
+                    pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
+                    
+
+                    if (idead) {
+                        main_state = NIGHT;
+                    } else if (strcmp(myRoleName, "Mafia") == 0) {
                         main_state = MAFIA;
-                    } else if (myRole == ROLE_POLICE) {
+                    } else if (strcmp(myRoleName, "Police") == 0) {
                         main_state = POLICE;
-                    } else if (myRole == ROLE_DOCTOR) {
+                    } else if (strcmp(myRoleName, "Doctor") == 0) {
                         main_state = DOCTOR;
                     } else {
-                        main_state = NIGHT;  // 4. 시민 또는 기타는 밤 상태
+                        main_state = NIGHT;  // 시민 또는 기타
                     }
+
                 }
 
 
@@ -640,26 +640,31 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case MAFIA:
             // 대기 
             pc.printf("\r\n\n마피아 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case DOCTOR:
             // 대기 
             pc.printf("\r\n\n의사 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case POLICE:
             // 대기 
             pc.printf("\r\n\n경찰 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case MODE_2:
             // 대기 
             pc.printf("\r\n\n모드 2 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
 
