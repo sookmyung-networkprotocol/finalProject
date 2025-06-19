@@ -804,12 +804,17 @@ void L3_FSMrun(void)
 
             // 3. 호스트 - 마피아 메시지 수신
             if (myId == 1 && change_state == 1) {
-                
                 pc.printf("들어옴");
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     int fromId = L3_LLI_getSrcId();
-                    int voteTo = atoi((char*)dataPtr);
+
+                    // ✅ 문자열 복사 후 null termination
+                    char voteStr[8] = {0}; // 충분한 크기 확보
+                    memcpy(voteStr, dataPtr, L3_LLI_getSize()); // 수신 크기만큼 복사
+                    voteStr[L3_LLI_getSize()] = '\0'; // null 종료 보장
+
+                    int voteTo = atoi(voteStr); // 안전하게 변환
 
                     pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
 
@@ -818,6 +823,7 @@ void L3_FSMrun(void)
                     change_state = 2;
                 }
             }
+
 
             // 3. 상태 전환
             if (change_state == 2) {
