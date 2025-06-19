@@ -464,8 +464,14 @@ void L3_FSMrun(void)
                             maxVotes = voteResults[id];
                             maxVotedId = id;
 
-                            // 💀 실제 처형 처리 추가
-                            dead[i] = true;  // 해당 플레이어를 죽음 처리
+                            // 💀 플레이어 ID 기준으로 죽음 처리
+                            for (int j = 0; j < NUM_PLAYERS; j++) {
+                                if (players[j].id == id) {
+                                    players[j].isAlive = false;  // 정확한 플레이어 객체 수정
+                                    dead[j] = true;
+                                    break;
+                                }
+                            }
 
                             tie = false;
                         } else if (voteResults[id] == maxVotes && maxVotes != 0 && id != maxVotedId) {
