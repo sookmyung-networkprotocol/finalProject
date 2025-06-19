@@ -756,14 +756,14 @@ void L3_FSMrun(void)
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         pc.printf("DEBUG: players[%d].id = %d\n", i, players[i].id);
                         if (players[i].id == targetId) {
-                            sprintf(resultMsg, "🕵️ 조사 결과: ID %d의 역할은 %s입니다.", targetId, getRoleName(players[i].role));
+                            sprintf(resultMsg, "조사 결과: ID %d의 역할은 %s입니다.", targetId, getRoleName(players[i].role));
                             found = true;
                             break;
                         }
                     }
 
                     if (!found) {
-                        sprintf(resultMsg, "❌ 조사 실패: ID %d의 플레이어를 찾을 수 없습니다.", targetId);
+                        sprintf(resultMsg, "조사 실패: ID %d의 플레이어를 찾을 수 없습니다.", targetId);
                     }
 
                     pc.printf("결과: %s\n", resultMsg);
@@ -772,7 +772,7 @@ void L3_FSMrun(void)
                     L3_LLI_dataReqFunc((uint8_t*)resultMsg, strlen(resultMsg), policeId);
                     pc.printf("[HOST] 경찰에게 조사 결과 전송 완료\n");
                 } else {
-                    pc.printf("❌ 잘못된 ID 수신: %d\n", targetId);
+                    pc.printf("잘못된 ID 수신: %d\n", targetId);
                 }
 
                 change_state = 2;
