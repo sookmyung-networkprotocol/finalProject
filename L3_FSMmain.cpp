@@ -19,6 +19,9 @@ bool waitingAck = false;     // ACK 대기 여부
 //FSM state -------------------------------------------------
 #define L3STATE_IDLE                0
 
+#define NUM_PLAYERS 4
+static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
+
 
 //state variables
 static uint8_t main_state = L3STATE_IDLE; //protocol state
@@ -276,7 +279,7 @@ void L3_FSMrun(void)
                 waitingHostInput = false;
 
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].isAlive) {
+                    if (!dead[i]) {  // 죽지 않은 플레이어만 포함
                         aliveIDs[aliveCount++] = players[i].id;
                     }
                     players[i].Voted = 0;
@@ -293,6 +296,7 @@ void L3_FSMrun(void)
 
                 change_state = 1;
             }
+
 
             // 2. 투표 메시지 전송 단계 (호스트)
             if (myId == 1 && change_state == 1) {
@@ -459,6 +463,16 @@ void L3_FSMrun(void)
                         if (voteResults[id] > maxVotes) {
                             maxVotes = voteResults[id];
                             maxVotedId = id;
+
+                            // 💀 플레이어 ID 기준으로 죽음 처리
+                            for (int j = 0; j < NUM_PLAYERS; j++) {
+                                if (players[j].id == id) {
+                                    players[j].isAlive = false;  // 정확한 플레이어 객체 수정
+                                    dead[j] = true;
+                                    break;
+                                }
+                            }
+
                             tie = false;
                         } else if (voteResults[id] == maxVotes && maxVotes != 0 && id != maxVotedId) {
                             tie = true;
@@ -471,6 +485,7 @@ void L3_FSMrun(void)
                         char killStr[32];
                         sprintf(killStr, "%d번 플레이어가 처형되었습니다.", maxVotedId);
                         strcat(msgStr, killStr);
+                        
 
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
@@ -480,10 +495,19 @@ void L3_FSMrun(void)
                     int num_mafia = 0;
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (!players[i].isAlive) continue;
-                        if (players[i].role == ROLE_MAFIA) num_mafia++;
-                        else num_citizen++;
+                        if (dead[i]) continue;  // ❗죽은 사람은 제외, 살아있는 사람만 체크
+
+                        if (players[i].role == ROLE_MAFIA) {
+                            num_mafia++;
+                            pc.printf("🧟 생존 마피아 ID: %d\r\n", players[i].id);
+                        } else {
+                            num_citizen++;
+                            pc.printf("😀 생존 시민 ID: %d\r\n", players[i].id);
+                        }
                     }
+
+                    pc.printf("생존자 수 - 마피아: %d, 시민: %d\r\n", num_mafia, num_citizen);
+
 
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
@@ -602,10 +626,10 @@ void L3_FSMrun(void)
                 if (gameOver) {
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
                 } else if (myId == 1) {
-                    main_state = MAFIA;  // 2. 호스트는 무조건 마피아 상태
+                   
+                    main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
 
-                    // 💀 실제 처형 처리 추가
-                    players[maxVotedId].isAlive = false;
+
                 }
                 else {
 
@@ -615,17 +639,7 @@ void L3_FSMrun(void)
                     pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
                     
 
-                    if (idead) {
-                        main_state = NIGHT;
-                    } else if (strcmp(myRoleName, "Mafia") == 0) {
-                        main_state = MAFIA;
-                    } else if (strcmp(myRoleName, "Police") == 0) {
-                        main_state = POLICE;
-                    } else if (strcmp(myRoleName, "Doctor") == 0) {
-                        main_state = DOCTOR;
-                    } else {
-                        main_state = NIGHT;  // 시민 또는 기타
-                    }
+                    main_state = NIGHT;
 
                 }
 
@@ -640,31 +654,20 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
-            main_state = OVER;
+            main_state = DAY;
             break;
 
-        case MAFIA:
-            // 대기 
-            pc.printf("\r\n\n마피아 dm 단계입니다.\n\n\n");
-            main_state = OVER;
-            break;
-
-        case DOCTOR:
-            // 대기 
-            pc.printf("\r\n\n의사 dm 단계입니다.\n\n\n");
-            main_state = OVER;
-            break;
-
-        case POLICE:
-            // 대기 
-            pc.printf("\r\n\n경찰 dm 단계입니다.\n\n\n");
-            main_state = OVER;
-            break;
-
+        
         case MODE_2:
             // 대기 
             pc.printf("\r\n\n모드 2 단계입니다.\n\n\n");
-            main_state = OVER;
+            
+            for (int i = 0; i < 4; i++) {
+            pc.printf("\r\nPlayer %d - ID: %d, Role: %s, Alive: %d\n\n", 
+                    i, players[i].id, getRoleName(players[i].role), dead[i]);
+            }
+
+            main_state = DAY;
             break;
 
 
