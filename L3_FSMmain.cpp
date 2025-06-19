@@ -747,7 +747,7 @@ void L3_FSMrun(void)
                 L3_event_clearEventFlag(L3_event_msgRcvd);
 
                 if (targetId >= 0 && targetId < NUM_PLAYERS) {
-                    pc.printf("🕵️ 경찰이 조사한 ID %d의 역할은: %s\n", targetId, players[targetId].role);
+                    pc.printf("🕵️ 경찰이 조사한 ID %d의 역할은: %s\n", targetId, getRoleName(players[targetId].role));
                 } else {
                     pc.printf("❌ 잘못된 ID 수신: %d\n", targetId);
                 }
