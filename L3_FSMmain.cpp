@@ -603,6 +603,14 @@ void L3_FSMrun(void)
                     bool isDead = false;
                     int myRole = -1;
 
+                    // 테스트
+                    pc.printf("내 번호호은 %d입니다.\n", myId);
+                    pc.printf("🧍 전체 플레이어 ID 목록:\n");
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        pc.printf("플레이어[%d] → ID: %d\n", i, players[i].id);
+                    }
+                    // 테스트 
+
                     // 내 생존 여부와 역할 확인
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         if (players[i].id == myId) {
