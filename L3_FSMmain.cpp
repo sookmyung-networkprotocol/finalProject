@@ -796,23 +796,45 @@ void L3_FSMrun(void)
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
 
-                change_state = 2;
+                waitingAck = true;  // ✅ ACK 대기 시작
             }
 
-            // 3. 호스트 - 마피아 메시지 수신 (언제든 감지)
+            // ✅ 게스트 - 호스트 ACK 수신 처리
+            if (myId != 1 && waitingAck && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
+
+                if (strncmp((char*)dataPtr, "ACK", size) == 0) {
+                    pc.printf("\r\n✅ [게스트] 호스트의 ACK 수신 완료\n");
+                    change_state = 2;
+                    waitingAck = false;
+                } else {
+                    pc.printf("\r\n❗ [게스트] ACK가 아닌 메시지 수신 (무시됨)\n");
+                }
+
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+            }
+
+            // 3. 호스트 - 마피아 메시지 수신
             if (myId == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 pc.printf("\n📥 [HOST] 이벤트 수신됨. 현재 change_state = %d\n", change_state);
 
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 int fromId = L3_LLI_getSrcId();
+                uint8_t size = L3_LLI_getSize();
 
                 if (change_state == 1) {
                     char voteStr[8] = {0};
-                    memcpy(voteStr, dataPtr, L3_LLI_getSize());
-                    voteStr[L3_LLI_getSize()] = '\0';
+                    memcpy(voteStr, dataPtr, size);
+                    voteStr[size] = '\0';
 
                     int voteTo = atoi(voteStr);
                     pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
+
+                    // ✅ 호스트가 ACK 전송
+                    const char* ack = "ACK";
+                    L3_LLI_dataReqFunc((uint8_t*)ack, strlen(ack), fromId);
+                    pc.printf("\r\n📤 [HOST] %d번에게 ACK 전송 완료\n", fromId);
 
                     waitingAck = false;
                     change_state = 2;
@@ -834,7 +856,6 @@ void L3_FSMrun(void)
 
             break;
         }
-
 
 
         
