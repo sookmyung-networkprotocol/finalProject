@@ -495,7 +495,7 @@ void L3_FSMrun(void)
                     int num_mafia = 0;
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (dead[i]) continue;
+                        if (!dead[i]) continue;
                         if (players[i].role == ROLE_MAFIA) {
                             num_mafia++;
                             pc.printf("🧟 생존 마피아 ID: %d\r\n", players[i].id);
