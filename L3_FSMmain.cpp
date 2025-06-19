@@ -614,6 +614,28 @@ void L3_FSMrun(void)
 
             // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
             if (change_state == 3) {
+                // 💀 밤에 마피아가 선택한 타겟 적용
+                int mafiaTarget = -1;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
+                        mafiaTarget = players[i].sentVoteId;
+                        break;
+                    }
+                }
+
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id == mafiaTarget && players[i].isAlive) {
+                        players[i].isAlive = false;
+                        pc.printf("💀 밤에 %d번 플레이어가 죽었습니다.\n", players[i].id);
+                    }
+                }
+
+                // 🔄 sentVoteId 초기화
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    players[i].sentVoteId = -1;
+                }
+
+                // 🧹 투표 초기화
                 voteDoneCount = 0;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     voteResults[i] = 0;
@@ -621,42 +643,35 @@ void L3_FSMrun(void)
                     players[i].Voted = 0;
                 }
 
-                change_state = 0;  // 다음 단계 대비 초기화
+                change_state = 0;
 
+                // 🛑 게임 종료 여부 체크
                 if (gameOver) {
-                    main_state = OVER;  // 1. 게임 종료 시 모두 OVER
+                    main_state = OVER;
                 } else if (myId == 1) {
-                   
-                    main_state = MAFIA;  // 2. 호스트는 마피아 
-                }
-                else {
-
-                    // 테스트
+                    main_state = MAFIA;
+                } else {
+                    // 디버깅 출력
                     pc.printf("내 번호는 %d입니다.\n", myId);
                     pc.printf("내 역할은 %s입니다.\n", myRoleName);
                     pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
-                    
-                    // 살았으면
-                    if (!idead) {
 
+                    // 살아 있으면 역할에 따라 상태 전환
+                    if (!idead) {
                         if (strcmp(myRoleName, "Mafia") == 0)
                             main_state = MAFIA;
                         else if (strcmp(myRoleName, "Police") == 0)
                             main_state = POLICE;
                         else if (strcmp(myRoleName, "Doctor") == 0)
                             main_state = DOCTOR;
-                        else if (strcmp(myRoleName, "Citizen") == 0)
+                        else
                             main_state = NIGHT;
-
-                    } else { // 죽었으면
+                    } else {
                         main_state = NIGHT;
                     }
-
-
                 }
-
-
             }
+
 
 
             break;
