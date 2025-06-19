@@ -430,6 +430,13 @@ void L3_FSMrun(void)
                     int destId = aliveIDs[currentSendIndex];
                     msgStr[0] = '\0';
 
+                    // 테스트
+                    pc.printf("\r\n[aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
+
                     // 1. 기본 득표 결과 정리
                     sprintf(msgStr, "투표 결과: ");
                     for (int i = 0; i < aliveCount; i++) {
