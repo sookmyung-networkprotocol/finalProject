@@ -35,6 +35,7 @@ typedef struct {
     Role role;             // 역할
     bool isAlive;          // 생존 여부
     int8_t Voted;          // 받은 표 수
+    int8_t sentVoteId; 
 } Player;
 
 // extern
