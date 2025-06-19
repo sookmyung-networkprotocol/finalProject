@@ -639,7 +639,7 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
-            main_state = OVER;
+            main_state = DAY;
             break;
 
         
@@ -652,7 +652,7 @@ void L3_FSMrun(void)
                     i, players[i].id, getRoleName(players[i].role), dead[i]);
             }
 
-            main_state = OVER;
+            main_state = DAY;
             break;
 
 
