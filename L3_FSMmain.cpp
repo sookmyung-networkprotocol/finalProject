@@ -666,7 +666,7 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
-            main_state = DAY;
+            main_state = OVER;
             break;
 
         
