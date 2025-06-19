@@ -39,6 +39,7 @@ void createPlayers() {
 
     for (int i = 0; i < NUM_PLAYERS; i++) {
         initPlayer(&players[i], playerIds[i], availableRoles[i]);
+        players[i].sentVoteId = -1; 
     }
 }
 
