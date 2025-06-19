@@ -713,17 +713,13 @@ void L3_FSMrun(void)
                 }
 
                 if (!waitingAck) {
-
                     msgStr[0] = '\0';
                     sprintf(msgStr, "죽일 사람을 투표하세요. 본인을 제외한 ID 중 선택: ");
                     for (int i = 0; i < aliveCount; i++) {
-
                         if (aliveIDs[i] != destId) {
                             char idStr[4];
                             sprintf(idStr, "%d ", aliveIDs[i]);
                             strcat(msgStr, idStr);
-                        } else {
-                            //pc.printf("\r\n[DEBUG] %d == destId, 생략됨", aliveIDs[i]);
                         }
                     }
 
@@ -733,10 +729,9 @@ void L3_FSMrun(void)
                     waitingAck = true;
                     change_state = 1;
                 }
-
             }
 
-            // 2. 게스트 마피아
+            // 2. 게스트 마피아 - 메시지 수신 및 응답
             if (myId != 1 && change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
@@ -797,45 +792,37 @@ void L3_FSMrun(void)
                 sprintf(ackMsg, "%d", voteTo);
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
+                bool sendOk = L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
+                pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료 (%s)\n", voteTo, sendOk ? "성공" : "실패");
 
                 change_state = 2;
             }
 
-
-            // 3. 호스트 - 마피아 메시지 수신
-            if (myId == 1 && change_state == 1) {
-                pc.printf("들어옴");
+            // 3. 호스트 - 마피아 메시지 수신 (언제든 감지)
+            if (myId == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                pc.printf("\n📥 [HOST] 이벤트 수신됨. 현재 change_state = %d\n", change_state);
 
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                if (dataPtr != NULL) {
-                    pc.printf("\n🔥 [DEBUG] 수신 데이터 있음: %s\n", dataPtr);
-                }
-                
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                int fromId = L3_LLI_getSrcId();
 
-                    pc.printf("들이ㅏㄻ으림ㄴㅇㄹㄹ");
-                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
+                if (change_state == 1) {
+                    char voteStr[8] = {0};
+                    memcpy(voteStr, dataPtr, L3_LLI_getSize());
+                    voteStr[L3_LLI_getSize()] = '\0';
 
-                    // ✅ 문자열 복사 후 null termination
-                    char voteStr[8] = {0}; // 충분한 크기 확보
-                    memcpy(voteStr, dataPtr, L3_LLI_getSize()); // 수신 크기만큼 복사
-                    voteStr[L3_LLI_getSize()] = '\0'; // null 종료 보장
-
-                    int voteTo = atoi(voteStr); // 안전하게 변환
-
+                    int voteTo = atoi(voteStr);
                     pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
 
                     waitingAck = false;
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
                     change_state = 2;
+                } else {
+                    pc.printf("⚠️ [HOST] 수신했지만 아직 change_state != 1 (무시됨)\n");
                 }
+
+                L3_event_clearEventFlag(L3_event_msgRcvd);
             }
 
-
-            // 3. 상태 전환
+            // 4. 상태 전환
             if (change_state == 2) {
                 pc.printf("\r\n🔄 [STATE] 마피아 단계 종료, 다음 상태로 전환\n");
                 if (myId == 1)
@@ -846,6 +833,7 @@ void L3_FSMrun(void)
 
             break;
         }
+
 
 
         
