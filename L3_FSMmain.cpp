@@ -503,6 +503,8 @@ void L3_FSMrun(void)
                         else num_citizen++;
                     }
 
+                    pc.printf("생존 ID: %d, %d\r\n", num_mafia, num_citizen);
+
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
                         strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
