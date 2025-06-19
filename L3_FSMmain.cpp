@@ -255,6 +255,8 @@ void L3_FSMrun(void)
             static int aliveIDs[NUM_PLAYERS];
             static bool voteCompleted[NUM_PLAYERS] = {false};
 
+            static int maxVotedId = -1;
+
             static char msgStr[512]; // 메시지 버퍼 약간 키움
             
             // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
@@ -430,13 +432,6 @@ void L3_FSMrun(void)
                     int destId = aliveIDs[currentSendIndex];
                     msgStr[0] = '\0';
 
-                    // 테스트
-                    pc.printf("\r\n[1. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
-
                     // 1. 기본 득표 결과 정리
                     sprintf(msgStr, "투표 결과: ");
                     for (int i = 0; i < aliveCount; i++) {
@@ -445,13 +440,6 @@ void L3_FSMrun(void)
                         sprintf(idStr, "[%d: %d표] ", playerId, voteResults[playerId]);
                         strcat(msgStr, idStr);
                     }
-
-                    // 테스트
-                    pc.printf("\r\n[2. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
 
                     // 2. 최대 득표자 계산
                     int maxVotes = 0;
@@ -469,13 +457,6 @@ void L3_FSMrun(void)
                         }
                     }
 
-                    // 테스트
-                    pc.printf("\r\n[3. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
-
                     // 3. 투표 처리 결과 메시지 추가
                     if (!tie && maxVotedId != -1) {
                         strcat(msgStr, "\n💀 ");
@@ -487,13 +468,6 @@ void L3_FSMrun(void)
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
                     }
 
-                    // 테스트
-                    pc.printf("\r\n[4. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
-
                     // 4. 생존 마피아/시민 수 계산
                     int num_mafia = 0;
                     int num_citizen = 0;
@@ -502,13 +476,6 @@ void L3_FSMrun(void)
                         if (players[i].role == ROLE_MAFIA) num_mafia++;
                         else num_citizen++;
                     }
-
-                    // 테스트
-                    pc.printf("\r\n[5. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
 
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
@@ -533,13 +500,6 @@ void L3_FSMrun(void)
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     uint8_t size = L3_LLI_getSize();
-
-                    // 테스트
-                    pc.printf("\r\n[6. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
-                    for (int i = 0; i < aliveCount; i++) {
-                        pc.printf("%d ", aliveIDs[i]);
-                    }
-                    // 테스트 
                     
                     if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
                         pc.printf("\r\nACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
@@ -635,6 +595,9 @@ void L3_FSMrun(void)
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
                 } else if (myId == 1) {
                     main_state = MAFIA;  // 2. 호스트는 무조건 마피아 상태
+
+                    // 💀 실제 처형 처리 추가
+                    players[maxVotedId].isAlive = false;
                 }
                 else {
                     bool isDead = false;
@@ -647,6 +610,7 @@ void L3_FSMrun(void)
                                 isDead = true;
                             }
                             myRole = players[i].role;
+                            pc.printf("내 역할은 %d입니다.\n", myRole);
                             break;
                         }
                     }
