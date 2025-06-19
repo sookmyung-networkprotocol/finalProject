@@ -727,25 +727,13 @@ void L3_FSMrun(void)
                         }
                     }
 
-                    pc.printf("\r\n[DEBUG] 최종 전송 메시지: %s", msgStr);
-
                     L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
                     pc.printf("\r\n📤 [HOST] %d번 마피아에게 메시지 전송: %s", destId, msgStr);
 
                     waitingAck = true;
+                    change_state = 1;
                 }
 
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
-                    int voteTo = atoi((char*)dataPtr);
-
-                    pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
-
-                    waitingAck = false;
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
-                    change_state = 2;
-                }
             }
 
             // 2. 게스트 마피아
@@ -811,6 +799,24 @@ void L3_FSMrun(void)
                 pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
                 change_state = 2;
+            }
+
+
+            // 3. 호스트 - 마피아 메시지 수신
+            if (myId == 1 && change_state == 1) {
+                
+                pc.printf("들어옴");
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    int fromId = L3_LLI_getSrcId();
+                    int voteTo = atoi((char*)dataPtr);
+
+                    pc.printf("\r\n🗳️ [HOST] %d번 마피아가 %d번을 선택했습니다.\n", fromId, voteTo);
+
+                    waitingAck = false;
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    change_state = 2;
+                }
             }
 
             // 3. 상태 전환
