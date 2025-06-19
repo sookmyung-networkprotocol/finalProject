@@ -19,6 +19,9 @@ bool waitingAck = false;     // ACK 대기 여부
 //FSM state -------------------------------------------------
 #define L3STATE_IDLE                0
 
+#define NUM_PLAYERS 10
+static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
+
 
 //state variables
 static uint8_t main_state = L3STATE_IDLE; //protocol state
@@ -276,7 +279,7 @@ void L3_FSMrun(void)
                 waitingHostInput = false;
 
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].isAlive) {
+                    if (!dead[i]) {  // 죽지 않은 플레이어만 포함
                         aliveIDs[aliveCount++] = players[i].id;
                     }
                     players[i].Voted = 0;
@@ -293,6 +296,7 @@ void L3_FSMrun(void)
 
                 change_state = 1;
             }
+
 
             // 2. 투표 메시지 전송 단계 (호스트)
             if (myId == 1 && change_state == 1) {
@@ -605,7 +609,8 @@ void L3_FSMrun(void)
                     main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
 
                     // 💀 실제 처형 처리 추가
-                    players[maxVotedId].isAlive = false;
+                    dead[maxVotedId] = true;  // 해당 플레이어를 죽음 처리
+
                 }
                 else {
 
