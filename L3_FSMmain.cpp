@@ -463,6 +463,10 @@ void L3_FSMrun(void)
                         if (voteResults[id] > maxVotes) {
                             maxVotes = voteResults[id];
                             maxVotedId = id;
+
+                            // 💀 실제 처형 처리 추가
+                            dead[i] = true;  // 해당 플레이어를 죽음 처리
+
                             tie = false;
                         } else if (voteResults[id] == maxVotes && maxVotes != 0 && id != maxVotedId) {
                             tie = true;
@@ -475,6 +479,7 @@ void L3_FSMrun(void)
                         char killStr[32];
                         sprintf(killStr, "%d번 플레이어가 처형되었습니다.", maxVotedId);
                         strcat(msgStr, killStr);
+                        
 
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
@@ -607,9 +612,6 @@ void L3_FSMrun(void)
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
                 } else if (myId == 1) {
                    
-                    // 💀 실제 처형 처리 추가
-                    dead[maxVotedId] = true;  // 해당 플레이어를 죽음 처리
-
                     main_state = MODE_2;  // 2. 호스트는 무조건 모드 2
 
 
