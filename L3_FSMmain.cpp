@@ -806,6 +806,12 @@ void L3_FSMrun(void)
             // 3. 호스트 - 마피아 메시지 수신
             if (myId == 1 && change_state == 1) {
                 pc.printf("들어옴");
+
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                if (dataPtr != NULL) {
+                    pc.printf("\n🔥 [DEBUG] 수신 데이터 있음: %s\n", dataPtr);
+                }
+                
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
 
                     pc.printf("들이ㅏㄻ으림ㄴㅇㄹㄹ");
