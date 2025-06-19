@@ -702,10 +702,103 @@ void L3_FSMrun(void)
         
 
         case POLICE:
-            // 대기 
-            pc.printf("\r\n\n경찰 시간이 되었습니다.\n\n\n");
-            main_state = DAY;
+        {
+            static bool sentToPolice = false;
+            static bool waitingAck = false;
+            static int policeId = -1;
+
+            // 1. Host: 살아있는 경찰에게 메시지 전송
+            if (myId == 1 && change_state == 0) {
+                int targetId = -1;
+
+                // 살아있는 경찰 찾기
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].role == ROLE_POLICE && players[i].isAlive) {
+                        policeId = players[i].id;
+                        break;
+                    }
+                }
+
+                if (policeId == -1) {
+                    pc.printf("👮‍♂️ 살아있는 경찰 없음. 낮 단계로 넘어갑니다.\n");
+                    change_state = 2;
+                } else {
+                    // 조사 대상 ID 전송
+                    char msg[100] = "조사할 사람의 ID를 입력하세요:";
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].isAlive && players[i].id != policeId) {
+                            char buffer[5];
+                            sprintf(buffer, " %d", players[i].id);
+                            strcat(msg, buffer);
+                        }
+                    }
+                    L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
+                    pc.printf("[HOST] %d번 경찰에게 조사할 ID 요청 전송\n", policeId);
+                    sentToPolice = true;
+                    waitingAck = true;
+                    change_state = 1;
+                }
+            }
+
+            // 2. Host: 경찰의 응답 수신 → 역할 공개
+            if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                int targetId = atoi((char*)dataPtr);
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+
+                if (targetId >= 0 && targetId < NUM_PLAYERS) {
+                    pc.printf("🕵️ 경찰이 조사한 ID %d의 역할은: %s\n", targetId, players[targetId].role);
+                } else {
+                    pc.printf("❌ 잘못된 ID 수신: %d\n", targetId);
+                }
+
+                change_state = 2;
+            }
+
+            // 3. 게스트: 경찰이면 메시지 수신 → ID 입력 → 전송
+            if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
+                L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 0)
+            {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
+                pc.printf("[경찰] 메시지 수신: %.*s\n", size, dataPtr);
+
+                int inputId = -1;
+                bool valid = false;
+                while (!valid) {
+                    pc.printf("[경찰] 조사할 ID 입력: ");
+                    while (!pc.readable());
+                    char ch = pc.getc();
+                    pc.printf("%c", ch);
+
+                    if (ch >= '0' && ch <= '9') {
+                        inputId = ch - '0';
+                        valid = true;
+                    } else {
+                        pc.printf("\n❗ 숫자만 입력하세요.");
+                    }
+                }
+
+                char reply[4];
+                sprintf(reply, "%d", inputId);
+                L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
+                pc.printf("[경찰] %d번을 조사하고 Host에 전송 완료\n", inputId);
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                change_state = 2;
+            }
+
+            // 4. 상태 전환: 단계로 이동
+            if (change_state == 2) {
+                main_state = MODE_2;
+                change_state = 0;
+            }
+
             break;
+        }
+
+
+
+
 
         case DOCTOR:
         {
@@ -941,7 +1034,7 @@ void L3_FSMrun(void)
                     i, players[i].id, getRoleName(players[i].role), dead[i]);
             }
 
-            main_state = DAY;
+            main_state = OVER;
             break;
 
 
