@@ -233,8 +233,6 @@ void L3_FSMrun(void)
             pc.printf("\r\n낮이 되었습니다.\n\n");
             // 단체 채팅 구현
 
-            players[0].isAlive = false;
-            players[1].isAlive = false;
             
             // 단체 채팅 끝난 후 모드 변경
             change_state = 0;
@@ -640,26 +638,31 @@ void L3_FSMrun(void)
         case NIGHT:
             // 대기 
             pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case MAFIA:
             // 대기 
             pc.printf("\r\n\n마피아 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case DOCTOR:
             // 대기 
             pc.printf("\r\n\n의사 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case POLICE:
             // 대기 
             pc.printf("\r\n\n경찰 dm 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
         case MODE_2:
             // 대기 
             pc.printf("\r\n\n모드 2 단계입니다.\n\n\n");
+            main_state = OVER;
             break;
 
 
