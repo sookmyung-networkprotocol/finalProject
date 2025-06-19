@@ -431,7 +431,7 @@ void L3_FSMrun(void)
                     msgStr[0] = '\0';
 
                     // 테스트
-                    pc.printf("\r\n[aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    pc.printf("\r\n[1. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
                     for (int i = 0; i < aliveCount; i++) {
                         pc.printf("%d ", aliveIDs[i]);
                     }
@@ -445,6 +445,13 @@ void L3_FSMrun(void)
                         sprintf(idStr, "[%d: %d표] ", playerId, voteResults[playerId]);
                         strcat(msgStr, idStr);
                     }
+
+                    // 테스트
+                    pc.printf("\r\n[2. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
 
                     // 2. 최대 득표자 계산
                     int maxVotes = 0;
@@ -462,6 +469,13 @@ void L3_FSMrun(void)
                         }
                     }
 
+                    // 테스트
+                    pc.printf("\r\n[3. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
+
                     // 3. 투표 처리 결과 메시지 추가
                     if (!tie && maxVotedId != -1) {
                         strcat(msgStr, "\n💀 ");
@@ -473,6 +487,13 @@ void L3_FSMrun(void)
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
                     }
 
+                    // 테스트
+                    pc.printf("\r\n[4. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
+
                     // 4. 생존 마피아/시민 수 계산
                     int num_mafia = 0;
                     int num_citizen = 0;
@@ -481,6 +502,13 @@ void L3_FSMrun(void)
                         if (players[i].role == ROLE_MAFIA) num_mafia++;
                         else num_citizen++;
                     }
+
+                    // 테스트
+                    pc.printf("\r\n[5. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("%d ", aliveIDs[i]);
+                    }
+                    // 테스트 
 
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
@@ -507,7 +535,7 @@ void L3_FSMrun(void)
                     uint8_t size = L3_LLI_getSize();
 
                     // 테스트
-                    pc.printf("\r\n[aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
+                    pc.printf("\r\n[6. aliveIDs 배열 내용, aliveCount=%d]: ", aliveCount);
                     for (int i = 0; i < aliveCount; i++) {
                         pc.printf("%d ", aliveIDs[i]);
                     }
