@@ -495,15 +495,19 @@ void L3_FSMrun(void)
                     int num_mafia = 0;
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (!dead[i]) continue;
+                        if (dead[i]) continue;  // ❗죽은 사람은 제외, 살아있는 사람만 체크
+
                         if (players[i].role == ROLE_MAFIA) {
                             num_mafia++;
                             pc.printf("🧟 생존 마피아 ID: %d\r\n", players[i].id);
+                        } else {
+                            num_citizen++;
+                            pc.printf("😀 생존 시민 ID: %d\r\n", players[i].id);
                         }
-                        else num_citizen++;
                     }
 
-                    pc.printf("생존 ID: %d, %d\r\n", num_mafia, num_citizen);
+                    pc.printf("생존자 수 - 마피아: %d, 시민: %d\r\n", num_mafia, num_citizen);
+
 
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
