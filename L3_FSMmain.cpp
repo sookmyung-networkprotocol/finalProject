@@ -597,7 +597,10 @@ void L3_FSMrun(void)
 
                 if (gameOver) {
                     main_state = OVER;  // 1. 게임 종료 시 모두 OVER
-                } else {
+                } else if (myId == 1) {
+                    main_state = MAFIA;  // 2. 호스트는 무조건 마피아 상태
+                }
+                else {
                     bool isDead = false;
                     int myRole = -1;
 
@@ -614,8 +617,6 @@ void L3_FSMrun(void)
 
                     if (isDead) {
                         main_state = NIGHT;  // 2. 죽었으면 밤 상태
-                    } else if (myId == 1) {
-                        main_state = MAFIA;  // 3. 호스트는 무조건 마피아 상태
                     } else if (myRole == ROLE_MAFIA) {
                         main_state = MAFIA;
                     } else if (myRole == ROLE_POLICE) {
