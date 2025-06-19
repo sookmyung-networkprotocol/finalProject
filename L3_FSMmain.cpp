@@ -24,6 +24,9 @@ bool waitingAck = false;     // ACK 대기 여부
 static uint8_t main_state = L3STATE_IDLE; //protocol state
 static uint8_t prev_state = main_state;
 
+static char myRoleName[16] = {0};
+static bool idead = false;
+
 //SDU (input)
 char msgStr[20];
 static uint8_t originalWord[1030];
@@ -209,7 +212,12 @@ void L3_FSMrun(void)
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, dataPtr, size);
+                int len = size;
+                if (len > 15) len = 15;              // 최대 크기 제한
+                memcpy(myRoleName, dataPtr, len);    // 복사
+                myRoleName[len] = '\0';               // null 종료
+
+                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, myRoleName, size);
 
                 // ACK 전송
                 const char ackMsg[] = "ACK";
@@ -557,7 +565,7 @@ void L3_FSMrun(void)
                 // 자기 자신이 죽었으면 상태 변경
                 if (killedId == myId) {
                     pc.printf("❗ 당신은 처형되었습니다.\n");
-                    players[myId].isAlive = false;
+                    idead = true;
                 }
 
                 // 게임 종료 메시지 확인
@@ -600,40 +608,25 @@ void L3_FSMrun(void)
                     players[maxVotedId].isAlive = false;
                 }
                 else {
-                    bool isDead = false;
-                    int myRole = -1;
 
                     // 테스트
-                    pc.printf("내 번호호은 %d입니다.\n", myId);
-                    pc.printf("🧍 전체 플레이어 ID 목록:\n");
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        pc.printf("플레이어[%d] → ID: %d\n", i, players[i].id);
-                    }
-                    // 테스트 
+                    pc.printf("내 번호는 %d입니다.\n", myId);
+                    pc.printf("내 역할은 %s입니다.\n", myRoleName);
+                    pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
+                    
 
-                    // 내 생존 여부와 역할 확인
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (players[i].id == myId) {
-                            if (!players[i].isAlive) {
-                                isDead = true;
-                            }
-                            myRole = players[i].role;
-                            pc.printf("내 역할은 %d입니다.\n", myRole);
-                            break;
-                        }
-                    }
-
-                    if (isDead) {
-                        main_state = NIGHT;  // 2. 죽었으면 밤 상태
-                    } else if (myRole == ROLE_MAFIA) {
+                    if (idead) {
+                        main_state = NIGHT;
+                    } else if (strcmp(myRoleName, "Mafia") == 0) {
                         main_state = MAFIA;
-                    } else if (myRole == ROLE_POLICE) {
+                    } else if (strcmp(myRoleName, "Police") == 0) {
                         main_state = POLICE;
-                    } else if (myRole == ROLE_DOCTOR) {
+                    } else if (strcmp(myRoleName, "Doctor") == 0) {
                         main_state = DOCTOR;
                     } else {
-                        main_state = NIGHT;  // 4. 시민 또는 기타는 밤 상태
+                        main_state = NIGHT;  // 시민 또는 기타
                     }
+
                 }
 
 
