@@ -15,6 +15,7 @@ int change_state = 0;
 int currentSendIndex = 0;    // 현재 전송 대상 플레이어 인덱스
 bool waitingAck = false;     // ACK 대기 여부
 int doctorTarget = -1;
+int policeTarget = -1;
 
 
 //FSM state -------------------------------------------------
@@ -612,80 +613,100 @@ void L3_FSMrun(void)
 
 
             // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
-           if (change_state == 3) {
-            // 💀 밤에 마피아가 선택한 타겟 적용
-            int mafiaTarget = -1;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
-                    mafiaTarget = players[i].sentVoteId;
-                    break;
+            if (change_state == 3) {
+                // 💀 밤에 마피아가 선택한 타겟 적용
+                int mafiaTarget = -1;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
+                        mafiaTarget = players[i].sentVoteId;
+                        break;
+                    }
                 }
-            }
 
-            // 🩺 의사 효과 반영: 마피아 타겟이 doctorTarget이면 무효, 아니면 죽음
-            if (mafiaTarget != -1) {
+                // 🩺 의사 효과 반영: 마피아가 선택한 플레이어가 doctorTarget이 아니면 죽음
                 for (int i = 0; i < NUM_PLAYERS; i++) {
                     if (players[i].id == mafiaTarget &&
                         players[i].isAlive &&
-                        players[i].id != doctorTarget)
+                        players[i].id != doctorTarget) 
                     {
                         players[i].isAlive = false;
                         pc.printf("💀 밤에 %d번 플레이어가 죽었습니다.\n", players[i].id);
                     }
                 }
-            }
 
-            // 🔁 idead 동기화 (자기 자신이 죽었을 경우)
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].id == myId && !players[i].isAlive) {
-                    idead = true;
+                // 🕵️ 경찰 조사 결과 출력 (해당 플레이어만 확인 가능)
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].role == ROLE_POLICE && players[i].isAlive) {
+                        int policeTarget = players[i].sentVoteId;
+
+                        for (int j = 0; j < NUM_PLAYERS; j++) {
+                            if (players[j].id == policeTarget) {
+                                const char* result = (players[j].role == ROLE_MAFIA) ? "✅ 마피아입니다!" : "⭕️ 시민입니다.";
+                                pc.printf("🕵️ [경찰 결과] %d번 플레이어는 %s\n", policeTarget, result);
+                                break;
+                            }
+                        }
+                    }
                 }
-            }
 
-            // 🔄 sentVoteId, doctorTarget 초기화
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                players[i].sentVoteId = -1;
-            }
-            doctorTarget = -1;
+                // 🔄 역할 투표 변수 초기화
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    players[i].sentVoteId = -1;
+                }
+                doctorTarget = -1;
 
-            // 🧹 투표 관련 변수 초기화
-            voteDoneCount = 0;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                voteResults[i] = 0;
-                voteCompleted[i] = false;
-                players[i].Voted = 0;
-            }
+                // 🧹 투표 관련 변수 초기화
+                voteDoneCount = 0;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    voteResults[i] = 0;
+                    voteCompleted[i] = false;
+                    players[i].Voted = 0;
+                }
 
-            // 🔄 상태 전환 준비
-            change_state = 0;
+                change_state = 0;
 
-            // 🏁 게임 종료 여부 체크
-            if (gameOver) {
-                main_state = OVER;
-            } else if (myId == 1) {
-                main_state = MAFIA;
-            } else {
-                // 디버깅용 출력
-                pc.printf("내 번호는 %d입니다.\n", myId);
-                pc.printf("내 역할은 %s입니다.\n", myRoleName);
-                pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
+                // 🎯 게임 종료 여부 판정
+                int num_mafia = 0;
+                int num_citizen = 0;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (!players[i].isAlive) continue;
 
-                // 살아있을 경우 역할별 분기
-                if (!idead) {
-                    if (strcmp(myRoleName, "Mafia") == 0)
-                        main_state = MAFIA;
-                    else if (strcmp(myRoleName, "Police") == 0)
-                        main_state = POLICE;
-                    else if (strcmp(myRoleName, "Doctor") == 0)
-                        main_state = DOCTOR;
+                    if (players[i].role == ROLE_MAFIA)
+                        num_mafia++;
                     else
-                        main_state = NIGHT;
+                        num_citizen++;
+                }
+
+                if (num_mafia == 0 || num_mafia >= num_citizen) {
+                    pc.printf("🏁 게임 종료 조건 만족\n");
+                    gameOver = true;
+                }
+
+                // ▶ 다음 상태 전환
+                if (gameOver) {
+                    main_state = OVER;
+                } else if (myId == 1) {
+                    main_state = MAFIA;
                 } else {
-                    main_state = NIGHT;
+                    // 디버깅 출력
+                    pc.printf("내 번호는 %d입니다.\n", myId);
+                    pc.printf("내 역할은 %s입니다.\n", myRoleName);
+                    pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
+
+                    if (!idead) {
+                        if (strcmp(myRoleName, "Mafia") == 0)
+                            main_state = MAFIA;
+                        else if (strcmp(myRoleName, "Police") == 0)
+                            main_state = POLICE;
+                        else if (strcmp(myRoleName, "Doctor") == 0)
+                            main_state = DOCTOR;
+                        else
+                            main_state = NIGHT;
+                    } else {
+                        main_state = NIGHT;
+                    }
                 }
             }
-        }
-
 
 
 
@@ -702,10 +723,86 @@ void L3_FSMrun(void)
         
 
         case POLICE:
-            // 대기 
-            pc.printf("\r\n\n경찰 시간이 되었습니다.\n\n\n");
-            main_state = DAY;
+        {
+            static bool policeDone = false;
+
+            if (myId == 1) {
+                // Host는 대기만
+                pc.printf("\r\n[HOST] 경찰 단계입니다. 게스트 경찰의 입력을 기다립니다.\n");
+                change_state = 3;
+                main_state = NIGHT;
+                break;
+            }
+
+            if (strcmp(myRoleName, "Police") != 0 || idead) {
+                // 경찰이 아니거나 죽었으면 바로 밤으로
+                change_state = 3;
+                main_state = NIGHT;
+                break;
+            }
+
+            if (!policeDone) {
+                pc.printf("\r\n🔍 [경찰] 조사를 시작합니다. 조사할 ID를 선택하세요.\n");
+
+                // 유효한 대상 표시
+                pc.printf("조사 가능한 대상 ID: ");
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id != myId && players[i].isAlive) {
+                        pc.printf("%d ", players[i].id);
+                    }
+                }
+
+                int selectedId = -1;
+                while (1) {
+                    pc.printf("\nID 입력: ");
+                    while (!pc.readable());  // 입력 대기
+                    char ch = pc.getc();
+                    pc.printf("%c\n", ch);
+
+                    if (ch >= '0' && ch <= '9') {
+                        selectedId = ch - '0';
+                        if (selectedId == myId) {
+                            pc.printf("❗ 자기 자신은 조사할 수 없습니다.\n");
+                            continue;
+                        }
+
+                        bool valid = false;
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].id == selectedId && players[i].isAlive) {
+                                valid = true;
+                                break;
+                            }
+                        }
+
+                        if (valid) break;
+                        else pc.printf("❗ 유효하지 않은 ID입니다.\n");
+                    } else {
+                        pc.printf("❗ 숫자만 입력 가능합니다.\n");
+                    }
+                }
+
+                policeTarget = selectedId;
+                pc.printf("✅ %d번 플레이어를 조사합니다...\n", policeTarget);
+
+                // 결과 출력
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id == policeTarget) {
+                        if (players[i].role == ROLE_MAFIA)
+                            pc.printf("🚨 %d번은 마피아입니다!\n", policeTarget);
+                        else
+                            pc.printf("✅ %d번은 마피아가 아닙니다.\n", policeTarget);
+                        break;
+                    }
+                }
+
+                policeDone = true;
+            }
+
+            change_state = 3;
+            main_state = NIGHT;
             break;
+        }
+
 
         case DOCTOR:
         {
