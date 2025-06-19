@@ -486,8 +486,10 @@ void L3_FSMrun(void)
                     // 5. 게임 결과 추가
                     if (num_mafia == 0) {
                         strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
+                        gameOver = true;
                     } else if (num_citizen <= num_mafia) {
                         strcat(msgStr, "\n💀 마피아 승리! 게임 종료.");
+                        gameOver = true;
                     } else {
                         strcat(msgStr, "\n☀️ 낮으로 넘어갑니다.");
                     }
@@ -560,18 +562,17 @@ void L3_FSMrun(void)
 
                 // 자기 자신이 죽었으면 상태 변경
                 if (killedId == myId) {
-                    pc.printf("❗ 당신은 처형되었습니다. 상태 변경 필요\n");
-                    // 예: players[myId].isAlive = false;
-                    // 추가로 change_state 변경 등 처리
+                    pc.printf("❗ 당신은 처형되었습니다.\n");
+                    players[myId].isAlive = false;
                 }
 
                 // 게임 종료 메시지 확인
                 if (strstr((char*)dataPtr, "시민 승리") != NULL) {
                     pc.printf("🎉 시민 승리! 게임 종료 처리 필요\n");
-                    // 게임 종료 상태 처리
+                    gameOver = true;
                 } else if (strstr((char*)dataPtr, "마피아 승리") != NULL) {
                     pc.printf("💀 마피아 승리! 게임 종료 처리 필요\n");
-                    // 게임 종료 상태 처리
+                    gameOver = true;
                 }
 
                 // ACK 전송
@@ -594,17 +595,41 @@ void L3_FSMrun(void)
                     players[i].Voted = 0;
                 }
 
+                change_state = 0;  // 다음 단계 대비 초기화
+
                 if (gameOver) {
-                    main_state = OVER;  // 게임 종료 상태
+                    main_state = OVER;  // 1. 게임 종료 시 모두 OVER
                 } else {
-                    if (myId == 1) {
-                        main_state = MAFIA;  // 호스트는 마피아 상태
+                    bool isDead = false;
+                    int myRole = -1;
+
+                    // 내 생존 여부와 역할 확인
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].id == myId) {
+                            if (!players[i].isAlive) {
+                                isDead = true;
+                            }
+                            myRole = players[i].role;
+                            break;
+                        }
+                    }
+
+                    if (isDead) {
+                        main_state = NIGHT;  // 2. 죽었으면 밤 상태
+                    } else if (myId == 1) {
+                        main_state = MAFIA;  // 3. 호스트는 무조건 마피아 상태
+                    } else if (myRole == ROLE_MAFIA) {
+                        main_state = MAFIA;
+                    } else if (myRole == ROLE_POLICE) {
+                        main_state = POLICE;
+                    } else if (myRole == ROLE_DOCTOR) {
+                        main_state = DOCTOR;
                     } else {
-                        main_state = NIGHT;  // 게스트는 밤 상태
+                        main_state = NIGHT;  // 4. 시민 또는 기타는 밤 상태
                     }
                 }
 
-                change_state = 0; // 다음 투표 준비 상태
+
             }
 
 
