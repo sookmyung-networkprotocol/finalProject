@@ -748,14 +748,25 @@ void L3_FSMrun(void)
 
                 if (targetId >= 0 && targetId < NUM_PLAYERS) {
                     // 경찰에게 결과 전송
-                    char resultMsg[100];
+                    char resultMsg[64];
+                    bool found = false;
+
+                    pc.printf("DEBUG: 조사할 ID = %d\n", targetId);
 
                     for (int i = 0; i < NUM_PLAYERS; i++) {
+                        pc.printf("DEBUG: players[%d].id = %d\n", i, players[i].id);
                         if (players[i].id == targetId) {
                             sprintf(resultMsg, "🕵️ 조사 결과: ID %d의 역할은 %s입니다.", targetId, getRoleName(players[i].role));
+                            found = true;
                             break;
                         }
                     }
+
+                    if (!found) {
+                        sprintf(resultMsg, "❌ 조사 실패: ID %d의 플레이어를 찾을 수 없습니다.", targetId);
+                    }
+
+                    pc.printf("결과: %s\n", resultMsg);
 
 
                     L3_LLI_dataReqFunc((uint8_t*)resultMsg, strlen(resultMsg), policeId);
