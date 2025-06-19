@@ -797,7 +797,7 @@ void L3_FSMrun(void)
                 sprintf(ackMsg, "%d", voteTo);
                 L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
                 pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
-                // L3_event_clearEventFlag(L3_event_msgRcvd);
+                L3_event_clearEventFlag(L3_event_msgRcvd);
                 change_state = 2;
             }
 
@@ -806,6 +806,8 @@ void L3_FSMrun(void)
             if (myId == 1 && change_state == 1) {
                 pc.printf("들어옴");
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+
+                    pc.printf("들이ㅏㄻ으림ㄴㅇㄹㄹ");
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     int fromId = L3_LLI_getSrcId();
 
