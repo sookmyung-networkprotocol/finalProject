@@ -791,10 +791,10 @@ void L3_FSMrun(void)
                 char ackMsg[4];
                 sprintf(ackMsg, "%d", voteTo);
 
-                L3_event_clearEventFlag(L3_event_msgRcvd);
                 L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
                 pc.printf("\r\n📤 [게스트] %d번에게 투표 결과 전송 완료\n", voteTo);
 
+                L3_event_clearEventFlag(L3_event_msgRcvd);
 
                 change_state = 2;
             }
