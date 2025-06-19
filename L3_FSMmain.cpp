@@ -728,7 +728,15 @@ void L3_FSMrun(void)
                     pc.printf("👨‍⚕️ 살아있는 의사 없음. 경찰 단계로 넘어갑니다.\n");
                     change_state = 2;
                 } else {
-                    char msg[] = "🩺 살릴 사람의 ID를 입력하세요:";
+                    // 살아있는 플레이어 ID 목록 구성
+                    char msg[100] = "살릴 사람의 ID를 입력하세요:";
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].isAlive && players[i].id != doctorId) {
+                            char buffer[5];
+                            sprintf(buffer, " %d", players[i].id);
+                            strcat(msg, buffer);
+                        }
+                    }
                     L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), doctorId);
                     pc.printf("[HOST] %d번 의사에게 살릴 ID 요청 전송\n", doctorId);
                     sentToDoctor = true;
