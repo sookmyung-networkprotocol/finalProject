@@ -53,3 +53,12 @@ const char* getRoleName(Role r) {
         default:           return "Unknown";
     }
 }
+
+int findPlayerIndexById(int id) {
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (players[i].id == id) {
+            return i;
+        }
+    }
+    return -1;
+}
