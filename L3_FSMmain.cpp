@@ -496,7 +496,10 @@ void L3_FSMrun(void)
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         if (!players[i].isAlive) continue;
-                        if (players[i].role == ROLE_MAFIA) num_mafia++;
+                        if (players[i].role == ROLE_MAFIA) {
+                            num_mafia++;
+                            pc.printf("🧟 생존 마피아 ID: %d\r\n", players[i].id);
+                        }
                         else num_citizen++;
                     }
 
@@ -504,7 +507,7 @@ void L3_FSMrun(void)
                     if (num_mafia == 0) {
                         strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
                         gameOver = true;
-                    } else if (num_citizen < num_mafia) {
+                    } else if (num_citizen <= num_mafia) {
                         strcat(msgStr, "\n💀 마피아 승리! 게임 종료.");
                         gameOver = true;
                     } else {
