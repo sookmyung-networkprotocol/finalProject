@@ -685,7 +685,7 @@ void L3_FSMrun(void)
 
 
         case MAFIA: {
-            bool waitingAck = false;
+            static bool waitingAck = false;
 
             // 1. 호스트 - 마피아 시간 진입
             if (myId == 1 && change_state == 0) {
@@ -712,21 +712,34 @@ void L3_FSMrun(void)
                     break;
                 }
 
-                pc.printf("%d", waitingAck);
                 if (!waitingAck) {
+                    pc.printf("\r\n[DEBUG] waitingAck == false, 메시지 생성 시작");
+
                     msgStr[0] = '\0';
                     sprintf(msgStr, "죽일 사람을 투표하세요. 본인을 제외한 ID 중 선택: ");
+                    pc.printf("\r\n[DEBUG] 초기 메시지: %s", msgStr);
+
                     for (int i = 0; i < aliveCount; i++) {
+                        pc.printf("\r\n[DEBUG] aliveIDs[%d] = %d, destId = %d", i, aliveIDs[i], destId);
+
                         if (aliveIDs[i] != destId) {
                             char idStr[4];
                             sprintf(idStr, "%d ", aliveIDs[i]);
                             strcat(msgStr, idStr);
+                            pc.printf("\r\n[DEBUG] msgStr에 추가됨: %s", msgStr);
+                        } else {
+                            pc.printf("\r\n[DEBUG] %d == destId, 생략됨", aliveIDs[i]);
                         }
                     }
 
+                    pc.printf("\r\n[DEBUG] 최종 전송 메시지: %s", msgStr);
+
+                    pc.printf("\r\n[DEBUG] L3_LLI_dataReqFunc 호출 직전");
                     L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
                     pc.printf("\r\n📤 [HOST] %d번 마피아에게 메시지 전송: %s", destId, msgStr);
+
                     waitingAck = true;
+                    pc.printf("\r\n[DEBUG] waitingAck = true 설정 완료");
                 }
 
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
