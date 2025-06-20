@@ -1,30 +1,39 @@
-#include <time.h>
-#include <cstdlib>   // rand(), srand()
+#include <string.h>
+#include <stdio.h>
+#include <vector>
+#include <stdlib.h>  
+#include <time.h>    
+#include <algorithm>    
+#include <random>      
 #include <ctime> 
+#include <iostream>
+using namespace std;
 
 #include "L3_host.h"
+#include "L3_FSMevent.h"    
+#include "L3_timer.h"       
+#include "L3_LLinterface.h" 
+#include "mbed.h"
 
-
+// 플레이어 배열
 Player players[NUM_PLAYERS];
-static uint8_t playerIds[NUM_PLAYERS] = {2, 3, 7, 8};
 
-// 플레이어 초기화 함수
+// 플레이어 ID 리스트 (수동 설정)
+uint8_t playerIds[NUM_PLAYERS] = {2, 3, 7, 8};
+
+void shuffleRoles(Role* roles, int size) {
+    random_device rd;
+    mt19937 g(rd());
+    shuffle(roles, roles + size, g);
+}
+
 void initPlayer(Player* p, uint8_t id, Role role) {
     p->id = id;
     p->role = role;
     p->isAlive = true;
     p->Voted = 0;
-    p->sentVoteId = -1; 
-}
-
-// 랜덤 역할 배정 
-void shuffleRoles(Role *roles, int n) {
-    for (int i = n - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        Role temp = roles[i];
-        roles[i] = roles[j];
-        roles[j] = temp;
-    }
+    p->sentVoteId = -1;
+    p->policeCheckedId = -1;
 }
 
 void createPlayers() {
@@ -39,17 +48,22 @@ void createPlayers() {
 
     for (int i = 0; i < NUM_PLAYERS; i++) {
         initPlayer(&players[i], playerIds[i], availableRoles[i]);
-        players[i].sentVoteId = -1; 
     }
 }
 
-// 역할 문자열 반환 함수
 const char* getRoleName(Role r) {
     switch (r) {
         case ROLE_CITIZEN: return "Citizen";
-        case ROLE_MAFIA:   return "Mafia";
-        case ROLE_POLICE:  return "Police";
-        case ROLE_DOCTOR:  return "Doctor";
-        default:           return "Unknown";
+        case ROLE_MAFIA: return "Mafia";
+        case ROLE_POLICE: return "Police";
+        case ROLE_DOCTOR: return "Doctor";
+        default: return "Unknown";
     }
+}
+
+int getPlayerIndexById(int id) {
+    for (int i = 0; i < NUM_PLAYERS; i++) {
+        if (players[i].id == id) return i;
+    }
+    return -1;
 }

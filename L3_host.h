@@ -15,8 +15,8 @@
 
 #define OVER                 12
 //FSM state -------------------------------------------------
-
-
+int getPlayerIndexById(int id);
+extern int getPlayerIndexById(int id);
 extern int change_state;
 #define NUM_PLAYERS 4
 #define NUM_ROLES 4
@@ -36,6 +36,7 @@ typedef struct {
     bool isAlive;          // 생존 여부
     int8_t Voted;          // 받은 표 수
     int8_t sentVoteId; 
+    int8_t policeCheckedId;  // 경찰이 조사한 대상 ID (-1이면 미사용)
 } Player;
 
 // extern
