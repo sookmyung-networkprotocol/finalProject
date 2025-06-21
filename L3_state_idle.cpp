@@ -49,20 +49,21 @@ void L3_handleMode1() {
     static bool waitingHostInput = false;
     static int currentSendIndex = 0;
 
-    // [HOST] 역할 전송 로직
     if (myId == 1 && change_state == 1) {
-        // 역할 전송 시작 조건
         if (!waitingAck && !waitingHostInput && currentSendIndex < NUM_PLAYERS) {
             myDestId = players[currentSendIndex].id;
             strcpy(msgStr, getRoleName(players[currentSendIndex].role));
             strcpy(players[currentSendIndex].receivedRole, msgStr);
 
             pc.printf("\r\nSEND ROLE to ID %d : %s\n\n", myDestId, msgStr);
+            if (strlen(msgStr) >= 50) {
+                pc.printf("[ERROR] 전송 메시지가 너무 깁니다. 전송하지 않음\n");
+                return;
+            }
             L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), myDestId);
             waitingAck = true;
         }
 
-        // ACK 수신 처리
         if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
             uint8_t* dataPtr = L3_LLI_getMsgPtr();
             uint8_t size = L3_LLI_getSize();
@@ -77,7 +78,6 @@ void L3_handleMode1() {
             L3_event_clearEventFlag(L3_event_msgRcvd);
         }
 
-        // HOST가 '1' 입력 시 다음 전송
         if (waitingHostInput && pc.readable()) {
             char c = pc.getc();
             pc.printf("\n[DEBUG] 입력된 문자: '%c' (0x%02X)\n", c, c);
@@ -92,9 +92,7 @@ void L3_handleMode1() {
                     pc.printf("\r\n게임이 시작되었습니다.\n\n");
                     change_state = 2;
                 }
-                // else: 다음 루프에서 자연스럽게 다음 플레이어로 전송됨
             } else if (c == '\r' || c == '\n') {
-                // 엔터 무시
                 pc.printf("[INFO] 엔터 입력 무시됨. '1'을 눌러주세요.\n");
             } else {
                 pc.printf("[INFO] '1'만 입력해야 다음 전송이 가능합니다.\n");
@@ -102,7 +100,7 @@ void L3_handleMode1() {
         }
     }
 
-    // [GUEST] 역할 수신 및 ACK 응답
+    // 게스트 역할 수신
     if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
         uint8_t* dataPtr = L3_LLI_getMsgPtr();
         uint8_t size = L3_LLI_getSize();
@@ -121,9 +119,8 @@ void L3_handleMode1() {
         change_state = 2;
     }
 
-    // 모든 플레이어에게 역할 전송 완료 시 상태 전이
-    if (change_state == 2) {
+    if (change_state == 2)
         main_state = DAY;
-    }
 }
+
 
