@@ -248,11 +248,11 @@ void L3_FSMrun(void)
             if (!printedOnce) {
                 if (myId == 1) {
                     pc.printf("\r\n🌞 낮이 되었습니다. 플레이어들이 그룹 채팅을 시작합니다.\n");
-                    pc.printf("📱 호스트는 채팅을 관찰만 합니다.\n");
+                    pc.printf("🎮 호스트는 'v'를 눌러 투표 단계로 넘어갈 수 있습니다.\n");
                 } else {
                     pc.printf("\r\n🌞 낮이 되었습니다. 그룹 채팅을 시작합니다.\n");
                     if (!idead) {
-                        pc.printf("✏️ 메시지를 입력하고 Enter를 누르세요. ('v' 입력 시 투표로 이동)\n");
+                        pc.printf("✏️ 메시지를 입력하고 Enter를 누르세요.\n");
                         pc.printf("💬 > ");
                     } else {
                         pc.printf("💀 당신은 죽었으므로 채팅에 참여할 수 없습니다.\n");
@@ -261,16 +261,12 @@ void L3_FSMrun(void)
                 printedOnce = true;
             }
             
-            // 호스트: 채팅 관찰만
+            // 호스트: 'v' 입력으로 투표 시작
             if (myId == 1) {
-                // 호스트는 메시지 수신만 처리 (관찰용)
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* msg = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
-                    
-                    // 'v' 메시지인지 확인
-                    if (strlen((char*)msg) == 1 && msg[0] == 'v') {
-                        pc.printf("\r\n🗳️ 플레이어가 투표 시작을 요청했습니다.\n");
+                if (pc.readable()) {
+                    char c = pc.getc();
+                    if (c == 'v') {
+                        pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\n");
                         
                         // 모든 살아있는 플레이어에게 투표 시작 신호 전송
                         const char voteStartMsg[] = "VOTE_START";
@@ -283,11 +279,11 @@ void L3_FSMrun(void)
                         printedOnce = false;
                         change_state = 0;
                         main_state = VOTE;
-                    } else {
-                        // 일반 채팅 메시지 표시
-                        pc.printf("\r\n📨 [Player %d] %s\n", fromId, msg);
                     }
-                    
+                }
+                
+                // 호스트는 채팅 메시지 수신하지 않음 (무시)
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
             }
@@ -326,26 +322,17 @@ void L3_FSMrun(void)
                     
                     // 메시지 전송 처리
                     if (L3_event_checkEventFlag(L3_event_dataToSend)) {
-                        // 'v' 입력 체크 (투표 시작 요청)
-                        if (wordLen == 1 && originalWord[0] == 'v') {
-                            pc.printf("\r\n🗳️ 투표 시작을 요청합니다...\n");
-                            
-                            // 호스트에게 투표 시작 요청
-                            L3_LLI_dataReqFunc((uint8_t*)originalWord, wordLen, 1);
-                        } else {
-                            // 일반 채팅 메시지
-                            // 내 메시지 출력
-                            pc.printf("\r\n🗨️ [나] %s\n💬 > ", originalWord);
-                            
-                            // 호스트 + 다른 살아있는 플레이어들에게 전송
-                            // 1. 호스트에게 전송 (관찰용)
-                            L3_LLI_dataReqFunc((uint8_t*)originalWord, wordLen, 1);
-                            
-                            // 2. 다른 살아있는 플레이어들에게 전송
-                            for (int i = 0; i < NUM_PLAYERS; i++) {
-                                if (players[i].isAlive && players[i].id != myId && players[i].id != 1) {
-                                    L3_LLI_dataReqFunc((uint8_t*)originalWord, wordLen, players[i].id);
-                                }
+                        // 내 메시지를 포맷팅해서 표시
+                        char formattedMsg[L3_MAXDATASIZE + 20];
+                        sprintf(formattedMsg, "[Player %d] %s", myId, originalWord);
+                        
+                        // 내 화면에 출력
+                        pc.printf("\r\n%s\n💬 > ", formattedMsg);
+                        
+                        // 다른 살아있는 게스트들에게만 전송 (호스트 제외)
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].isAlive && players[i].id != myId && players[i].id != 1) {
+                                L3_LLI_dataReqFunc((uint8_t*)formattedMsg, strlen(formattedMsg), players[i].id);
                             }
                         }
                         
@@ -357,7 +344,6 @@ void L3_FSMrun(void)
                 // 메시지 수신 처리
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* msg = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
                     
                     // 투표 시작 신호 체크
                     if (strncmp((char*)msg, "VOTE_START", 10) == 0) {
@@ -366,8 +352,8 @@ void L3_FSMrun(void)
                         change_state = 0;
                         main_state = VOTE;
                     } else {
-                        // 일반 채팅 메시지 출력
-                        pc.printf("\r\n📨 [Player %d] %s\n", fromId, msg);
+                        // 다른 플레이어의 채팅 메시지 출력
+                        pc.printf("\r\n%s\n", msg);
                         if (!idead) {
                             pc.printf("💬 > ");
                         }
