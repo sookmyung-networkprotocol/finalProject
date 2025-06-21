@@ -82,7 +82,7 @@ void L3_handleMode1() {
         if (waitingHostInput) {
             if (pc.readable()) {
                 char c = pc.getc();
-                pc.printf("\n[DEBUG] 입력된 문자: %c\n", c);  // 디버깅용 출력
+                pc.printf("\n[DEBUG] 입력된 문자 (ASCII): '%c' (0x%02X)\n", c, c);
 
                 if (c == '1') {
                     pc.printf("\r\n1 입력 확인. 다음 플레이어로 전송합니다.\n");
@@ -90,19 +90,21 @@ void L3_handleMode1() {
                     currentSendIndex++;
 
                     if (currentSendIndex >= NUM_PLAYERS) {
-                        pc.printf("\r\n게임이 시작되었습니다.\n\n");
+                        pc.printf("\r\n모든 플레이어에게 역할을 전송했습니다. 게임을 시작합니다.\n\n");
                         change_state = 2;
                         main_state = DAY;
                     } else {
-                        change_state = 1;
+                        change_state = 1; // 다음 플레이어 전송 준비
                         main_state = L3STATE_IDLE;
                     }
+                } else if (c == '\r' || c == '\n') {
+                    // 엔터 무시
+                    pc.printf("[INFO] 엔터 입력 무시됨. '1'을 눌러주세요.\n");
                 } else {
-                    pc.printf("\r\n1을 입력해야 다음 전송을 진행합니다.\n\n");
+                    pc.printf("[INFO] 입력 무시됨: '%c' (0x%02X). '1'을 입력해야 다음으로 진행됩니다.\n", c, c);
                 }
             }
         }
-    }
 
     // Guest 플레이어 처리
     if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
