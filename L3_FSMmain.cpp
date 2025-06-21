@@ -52,32 +52,6 @@ void L3_finalizeNight() {
     doctorTarget = -1;
 }
 
-void L3_handleIdle() {
-    if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-        uint8_t* msg = L3_LLI_getMsgPtr();
-        uint8_t len = L3_LLI_getSize();
-        if (len >= 3 && strncmp((char*)msg, "ACK", 3) == 0) {
-            pc.printf("[IDLE] ACK 수신함\n");
-            L3_event_clearEventFlag(L3_event_msgRcvd);
-        } else {
-            pc.printf("[IDLE] 일반 메시지 수신 → DAY 상태에서 처리하도록 보존\n");
-        }
-    }
-}
-
-void L3_handleMode1() {
-    if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-        uint8_t* msg = L3_LLI_getMsgPtr();
-        uint8_t len = L3_LLI_getSize();
-        if (len >= 4 && strncmp((char*)msg, "ROLE", 4) == 0) {
-            pc.printf("[MODE_1] ROLE 메시지 수신\n");
-            L3_event_clearEventFlag(L3_event_msgRcvd);
-        } else {
-            pc.printf("[MODE_1] 일반 메시지 수신 → DAY 상태에서 처리하도록 보존\n");
-        }
-    }
-}
-
 void L3_FSMrun() {
     if (main_state != prev_state) {
         pc.printf("\n[L3] 상태 전이: %d → %d\n", prev_state, main_state);

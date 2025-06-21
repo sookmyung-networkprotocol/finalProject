@@ -5,16 +5,6 @@
 #include "L2_msg.h"
 #include <cstring>
 
-// 안전하게 L2 포맷 붙여 전송하는 함수
-void L3_sendRaw(uint8_t* payload, uint8_t length, uint8_t destId)
-{
-    uint8_t pdu[200];
-    uint8_t seq = 0;
-    uint8_t size = L2_msg_encodeData(pdu, payload, seq, length, 1);
-    pc.printf("[DEBUG] SEND pdu[0]=%d, size=%d, destId=%d\n", pdu[0], size, destId);
-    L3_LLI_dataReqFunc(pdu, size, destId);
-}
-
 void L3_handleDay()
 {
     static char inputBuffer[256] = {0};
