@@ -12,7 +12,7 @@ void L3_handleVote()
     static int receivedVotes = 0;
 
     // [0] 게스트가 vote start 신호 'S'를 수신한 경우 상태 전이 (예비 안전용)
-    if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+    if (myId != 1 && main_state != VOTE && L3_event_checkEventFlag(L3_event_msgRcvd)) {
         uint8_t* msg = L3_LLI_getMsgPtr();
         uint8_t size = L3_LLI_getSize();
 
@@ -51,7 +51,7 @@ void L3_handleVote()
                 uint8_t targetId = input - '0';
                 bool valid = false;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == targetId && players[i].isAlive) {
+                    if (players[i].id == targetId && players[i].isAlive && players[i].id != 1) {
                         valid = true;
                         break;
                     }
@@ -60,7 +60,7 @@ void L3_handleVote()
                 if (valid) {
                     uint8_t voteMsg[2] = {'V', targetId};
                     L3_LLI_dataReqFunc(voteMsg, 2, 1);  // Host에게 전송
-                    pc.printf(" \u2192 %d번에게 투표 전송 완료\n", targetId);
+                    pc.printf(" → %d번에게 투표 전송 완료\n", targetId);
                     voted = true;
                 } else {
                     pc.printf("\n[VOTE] 유효하지 않은 ID입니다. 생존자에게만 투표하세요.\n");
@@ -89,7 +89,7 @@ void L3_handleVote()
     if (myId == 1) {
         int alivePlayers = 0;
         for (int i = 0; i < NUM_PLAYERS; i++) {
-            if (players[i].isAlive && players[i].id != 1) // Host 제외
+            if (players[i].isAlive && players[i].id != 1)
                 alivePlayers++;
         }
 
@@ -97,10 +97,10 @@ void L3_handleVote()
             // 최대 득표자 계산
             uint8_t maxId = 0;
             int maxVotes = 0;
-            for (auto& entry : voteCounts) {
-                if (entry.second > maxVotes) {
-                    maxVotes = entry.second;
-                    maxId = entry.first;
+            for (std::map<uint8_t, int>::iterator it = voteCounts.begin(); it != voteCounts.end(); ++it) {
+                if (it->second > maxVotes) {
+                    maxVotes = it->second;
+                    maxId = it->first;
                 }
             }
 
@@ -113,7 +113,7 @@ void L3_handleVote()
                 }
             }
 
-            // 다음 상태로 전이
+            // 초기화 및 상태 전이
             printed = false;
             voted = false;
             voteCounts.clear();
