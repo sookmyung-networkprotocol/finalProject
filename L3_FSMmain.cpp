@@ -7,35 +7,31 @@
 #include "L2_FSMmain.h"
 #include "L3_host.h"
 
-
-// extern 
+// 전역 변수들
 int change_state = 0;
+static bool isHost = false;
+static bool isInTeam = false;
+static int playerCnt = 0;
+static int rcvdCnfCnt = 0;
 
-// variables
-int currentSendIndex = 0;    // 현재 전송 대상 플레이어 인덱스
-bool waitingAck = false;     // ACK 대기 여부
-int doctorTarget = -1;
-
-
-//FSM state -------------------------------------------------
-#define L3STATE_IDLE                0
-
-#define NUM_PLAYERS 4
-static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
-
-
-//state variables
-static uint8_t main_state = L3STATE_IDLE; //protocol state
-static uint8_t prev_state = main_state;
-
+// 게임 상태 변수들
+static int currentSendIndex = 0;
+static bool waitingAck = false;
+static int doctorTarget = -1;
 static char myRoleName[16] = {0};
 static bool idead = false;
 
+//FSM state
+#define L3STATE_IDLE                0
+
+//state variables
+static uint8_t main_state = L3STATE_IDLE;
+static uint8_t prev_state = main_state;
+
 //SDU (input)
-char msgStr[20];
+char msgStr[200];
 static uint8_t originalWord[1030];
 static uint8_t wordLen=0;
-
 static uint8_t sdu[1030];
 
 //serial port interface
@@ -68,17 +64,25 @@ static void L3service_processInputWord(void)
     }
 }
 
-
-
 void L3_initFSM(uint8_t Id, uint8_t destId)
 {
-
     myId = Id;
     myDestId = destId;
-    //initialize service layer
-    // pc.attach(&L3service_processInputWord, Serial::RxIrq);
-
-    // pc.printf("Give a word to send : ");
+    
+    // 호스트 여부 판단 (ID 1이 호스트)
+    isHost = (myId == 1);
+    isInTeam = false;
+    playerCnt = 0;
+    rcvdCnfCnt = 0;
+    
+    // 키보드 입력 이벤트 핸들러 등록
+    pc.attach(&L3service_processInputWord, Serial::RxIrq);
+    
+    if (isHost) {
+        pc.printf("Host mode initialized. Waiting for players...\n");
+    } else {
+        pc.printf("Player mode initialized. Waiting for match...\n");
+    }
 }
 
 void L3_FSMrun(void)
@@ -89,60 +93,118 @@ void L3_FSMrun(void)
         prev_state = main_state;
     }
 
-    //FSM should be implemented here! ---->>>>
+    //FSM implementation
     switch (main_state)
     {
-        case L3STATE_IDLE: //IDLE state description
+        case L3STATE_IDLE: // IDLE state
         {
-            // 임시 시작점 : 바로 match 시작
-            if (change_state == 0)
+            // Host 초기화 및 매치 요청 전송
+            if (isHost && !isInTeam && change_state == 0) 
+            {
+                pc.printf("Starting match requests...\n");
+                // 매치 요청 전송 로직 (여기서는 단순화)
+                change_state = 1;
                 main_state = MATCH;
-             // 연결 기기 변경 및 FSM 초기화 : 호스트, 게스트 모두 해당
-            else if (change_state == 1)
-            {
-                L2_FSMrun();
-                main_state = MODE_1;
             }
-
-            if (L3_event_checkEventFlag(L3_event_msgRcvd)) //if data reception event happens
+            // Player 매치 요청 수신 대기
+            else if (!isHost && !isInTeam)
             {
-                //Retrieving data info.
+                if (L3_event_checkEventFlag(L3_event_msgRcvd))
+                {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    if (dataPtr[0] == MSG_TYPE_MATCH_REQ)
+                    {
+                        // 매치 ACK 전송
+                        uint8_t ackMsg[2] = {MSG_TYPE_MATCH_ACK, 0};
+                        L3_LLI_dataReqFunc(ackMsg, 2, 1); // Host에게 전송
+                        pc.printf("Match ACK sent to host\n");
+                    }
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+            }
+            
+            // 일반 메시지 처리
+            if (L3_event_checkEventFlag(L3_event_msgRcvd))
+            {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
-
-                debug("\r\nRECIVED MSG : %s (length:%i)\n\n", dataPtr, size);
                 
-                // pc.printf("Give a word to send : ");
+                // 그룹 채팅 메시지 처리
+                if (dataPtr[0] == MSG_TYPE_GC)
+                {
+                    pc.printf("\r\n[GROUP CHAT] %.*s\n\n", size-1, dataPtr+1);
+                }
                 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
             }
-            else if (L3_event_checkEventFlag(L3_event_dataToSend)) //if data needs to be sent (keyboard input)
+            
+            // 키보드 입력으로 그룹 채팅 전송
+            if (L3_event_checkEventFlag(L3_event_dataToSend) && idead == false)
             {
-                //msg header setting
-                strcpy((char*)sdu, (char*)originalWord);
-                L3_LLI_dataReqFunc(sdu, wordLen, myDestId);
-
+                // 그룹 채팅 메시지 구성
+                sdu[0] = MSG_TYPE_GC;
+                strcpy((char*)sdu+1, (char*)originalWord);
+                
+                // 모든 살아있는 플레이어에게 전송 (브로드캐스트)
+                L3_LLI_dataReqFunc(sdu, wordLen+1, 255); // 255는 브로드캐스트
+                
                 wordLen = 0;
-
-                // pc.printf("Give a word to send : ");
-
                 L3_event_clearEventFlag(L3_event_dataToSend);
             }
+            
             break;
-
         }
             
-        case MATCH: // 임시 시작점
-            main_state = MODE_1; // rcvd_matchAck_done 
+        case MATCH: // 매치메이킹 상태
+        {
+            if (isHost)
+            {
+                // Host: 플레이어들로부터 ACK 수신 대기
+                if (L3_event_checkEventFlag(L3_event_msgRcvd))
+                {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    if (dataPtr[0] == MSG_TYPE_MATCH_ACK)
+                    {
+                        playerCnt++;
+                        pc.printf("Player %d joined. Total: %d/3\n", L3_LLI_getSrcId(), playerCnt);
+                        
+                        // CNF 전송
+                        uint8_t cnfMsg[2] = {MSG_TYPE_MATCH_CNF, 0};
+                        L3_LLI_dataReqFunc(cnfMsg, 2, L3_LLI_getSrcId());
+                        
+                        if (playerCnt >= 3) // 3명 이상 모이면 게임 시작
+                        {
+                            isInTeam = true;
+                            main_state = MODE_1;
+                            change_state = 0;
+                        }
+                    }
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+            }
+            else
+            {
+                // Player: CNF 수신 대기
+                if (L3_event_checkEventFlag(L3_event_msgRcvd))
+                {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    if (dataPtr[0] == MSG_TYPE_MATCH_CNF)
+                    {
+                        isInTeam = true;
+                        pc.printf("Match confirmed! Waiting for game start...\n");
+                    }
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+            }
             break;
+        }
         
-        case MODE_1:
+        case MODE_1: // 역할 배정 단계
         {
             static bool waitingAck = false;
             static bool waitingHostInput = false;
             static int currentSendIndex = 0;
-            static int myDestId = 0;
-            static char msgStr[32]; 
+            static char msgStr[64]; 
 
             // 시작점 - 호스트이면 역할 배정 
             if (myId == 1 && change_state == 0) 
@@ -154,22 +216,24 @@ void L3_FSMrun(void)
                             i, players[i].id, getRoleName(players[i].role));
                 }
 
-                currentSendIndex = 0;  // 초기화
+                currentSendIndex = 0;
                 waitingAck = false;
                 waitingHostInput = false;
                 change_state = 1;
             } 
             
-            // 중간점 - 호스트이면 역할 전송 
+            // 호스트: 역할 전송 
             if (myId == 1 && change_state == 1) {
                 if (!waitingAck && !waitingHostInput && currentSendIndex < 4) {
-                    myDestId = players[currentSendIndex].id;
-
-                    strcpy(msgStr, getRoleName(players[currentSendIndex].role));
+                    int destId = players[currentSendIndex].id;
                     
-                    pc.printf("\r\nSEND ROLE to ID %d : %s\n\n", myDestId, msgStr);
+                    // 역할 메시지 구성
+                    msgStr[0] = MSG_TYPE_ROLE_ASSIGN;
+                    strcpy(msgStr+1, getRoleName(players[currentSendIndex].role));
                     
-                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), myDestId);
+                    pc.printf("\r\nSEND ROLE to ID %d : %s\n\n", destId, msgStr+1);
+                    
+                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
                     waitingAck = true;
                 }
                 
@@ -178,86 +242,82 @@ void L3_FSMrun(void)
                     uint8_t size = L3_LLI_getSize();
                     
                     if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
-                        pc.printf("\r\nACK received from player ID %d\n", myDestId);
+                        pc.printf("\r\nACK received from player ID %d\n", L3_LLI_getSrcId());
                         waitingAck = false;
-                        waitingHostInput = true;
-                        pc.printf("\r\n다음 플레이어에게 전송할까요? (1 입력)\n");
+                        currentSendIndex++;
+
+                        if (currentSendIndex >= 4) {
+                            pc.printf("\r\n게임이 시작되었습니다.\n\n");
+                            change_state = 2;
+                        }
                     }
 
                     L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
-
-                // 호스트가 '1' 입력하면 다음 전송 진행
-                if (waitingHostInput) {
-                    if (pc.readable()) {
-                        char c = pc.getc();
-                        if (c == '1') {
-                            pc.printf("\r\n1 입력 확인. 다음 플레이어로 전송합니다.\n");
-                            waitingHostInput = false;
-                            currentSendIndex++;
-
-                            if (currentSendIndex >= 4) {
-                                pc.printf("\r\n게임이 시작되었습니다.\n\n");
-                                change_state = 2;  // 모든 역할 전송 완료 후 상태 전환
-                            } else {
-                                // 다음 플레이어 전송 준비를 위해 다시 IDLE로 가기
-                                change_state = 1;
-                                main_state = L3STATE_IDLE;
-                            }
-                        } else {
-                            pc.printf("\r\n1을 입력해야 다음 전송을 진행합니다.\n\n");
-                        }
-                    }
-                }
             }
 
-            // 게스트 - 메시지 수신 이벤트 처리
+            // 게스트: 메시지 수신 이벤트 처리
             if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                int len = size;
-                if (len > 15) len = 15;              // 최대 크기 제한
-                memcpy(myRoleName, dataPtr, len);    // 복사
-                myRoleName[len] = '\0';               // null 종료
+                if (dataPtr[0] == MSG_TYPE_ROLE_ASSIGN) {
+                    int len = size - 1;
+                    if (len > 15) len = 15;
+                    memcpy(myRoleName, dataPtr+1, len);
+                    myRoleName[len] = '\0';
 
-                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, myRoleName, size);
+                    pc.printf("\r\n나의 역할 : %s\n\n", myRoleName);
 
-                // ACK 전송
-                const char ackMsg[] = "ACK";
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
+                    // ACK 전송
+                    const char ackMsg[] = "ACK";
+                    L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
 
+                    pc.printf("\r\n게임이 시작되었습니다.\n\n");
+                    change_state = 2;
+                }
+                
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-
-                pc.printf("\r\n게임이 시작되었습니다.\n\n");
-                change_state = 2;  // 게스트도 상태 전환
             }
 
-            // 조건부 상태 전환만 허용
+            // 조건부 상태 전환
             if (change_state == 2)
                 main_state = DAY;
 
             break;
         }
 
-        case DAY:
+        case DAY: // 낮 단계 (그룹 채팅)
         {
-            pc.printf("\r\n낮이 되었습니다.\n\n");
-            // 단체 채팅 구현
-
+            static bool dayStarted = false;
             
-            // 단체 채팅 끝난 후 모드 변경
-            change_state = 0;
-            main_state = VOTE;
+            if (!dayStarted) {
+                pc.printf("\r\n=== 낮이 되었습니다. 자유롭게 대화하세요 ===\n\n");
+                dayStarted = true;
+                
+                // 호스트는 일정 시간 후 투표 시작
+                if (isHost) {
+                    L3_timer_startTimer(); // 타이머 시작
+                }
+            }
+            
+            // 타이머 만료 시 투표 단계로 전환 (호스트만)
+            if (isHost && L3_timer_getTimerStatus() == 0) {
+                dayStarted = false;
+                main_state = VOTE;
+                change_state = 0;
+                pc.printf("\r\n=== 투표 시간입니다 ===\n\n");
+            }
+            
             break;
-        
         }
         
-       case VOTE:
+        case VOTE: // 투표 단계
         {
-            static int voteDoneCount = 0;  // 투표 완료한 사람 수
-            static int aliveCount = 0;      // 살아있는 사람 수
-            static bool gameOver = false;  // 게임 종료 여부
+            // 기존 VOTE 로직 유지 (이미 구현되어 있음)
+            static int voteDoneCount = 0;
+            static int aliveCount = 0;
+            static bool gameOver = false;
 
             #define MAX_PLAYER_ID 9
             static int voteResults[MAX_PLAYER_ID + 1] = {0};
@@ -266,12 +326,9 @@ void L3_FSMrun(void)
             static int currentSendIndex = 0;
             static int aliveIDs[NUM_PLAYERS];
             static bool voteCompleted[NUM_PLAYERS] = {false};
-
-            static int maxVotedId = -1;
-
-            static char msgStr[512]; // 메시지 버퍼 약간 키움
+            static char msgStr[512];
             
-            // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
+            // 호스트: 투표 초기화 및 진행
             if (myId == 1 && change_state == 0) {
                 aliveCount = 0;
                 voteDoneCount = 0;
@@ -280,25 +337,21 @@ void L3_FSMrun(void)
                 waitingHostInput = false;
 
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (!dead[i]) {  // 죽지 않은 플레이어만 포함
+                    if (players[i].isAlive) {
                         aliveIDs[aliveCount++] = players[i].id;
                     }
                     players[i].Voted = 0;
                     voteCompleted[i] = false;
-                    voteResults[i] = 0;
+                    if (players[i].id <= MAX_PLAYER_ID) {
+                        voteResults[players[i].id] = 0;
+                    }
                 }
 
                 pc.printf("\r\n📢 투표를 시작합니다.\r\n");
-                pc.printf("\r\n🧍 살아있는 플레이어 목록:\r\n");
-                for (int i = 0; i < aliveCount; i++) {
-                    pc.printf("Player ID: %d ", aliveIDs[i]);
-                }
-                pc.printf("\r\n-----------------------------------------\r\n");
-
                 change_state = 1;
             }
 
-
+//////////////////////////////////////////////////////////////
             // 2. 투표 메시지 전송 단계 (호스트)
             if (myId == 1 && change_state == 1) {
                 // 플레이어에게 투표 요청 메시지 전송
@@ -441,11 +494,12 @@ void L3_FSMrun(void)
 
             // 4. 투표 결과 전송 단계 (호스트)
             if (myId == 1 && change_state == 2) {
-                static char msgStr[512]; // 결과 메시지 (한 번만 구성)
+                static char msgStr[512];
                 static bool msgGenerated = false;
                 static int currentSendIndex = 0;
                 static bool waitingAck = false;
                 static bool waitingHostInput = false;
+                static int killedByVoteId = -1; // 투표로 죽은 플레이어 ID 저장
 
                 if (!msgGenerated) {
                     // 메시지 구성 시작
@@ -472,30 +526,33 @@ void L3_FSMrun(void)
                             maxVotes = voteResults[id];
                             maxVotedId = id;
                             tie = false;
-                        } else if (voteResults[id] == maxVotes && id != maxVotedId) {
+                        } else if (voteResults[id] == maxVotes && id != maxVotedId && maxVotes > 0) {
                             tie = true;
                         }
                     }
 
-                    // 투표 결과 메시지 추가
+                    // 투표 결과 메시지 추가 및 실제 플레이어 제거
                     if (!tie && maxVotedId != -1) {
                         strcat(msgStr, "\n💀 ");
                         char killBuf[64];
                         sprintf(killBuf, "%d번 플레이어가 처형되었습니다.", maxVotedId);
                         strcat(msgStr, killBuf);
 
-                        // 실제 제거 처리
+                        // ⭐ 핵심 수정: 실제로 players 배열에서 플레이어를 죽음 처리
+                        killedByVoteId = maxVotedId;
                         for (int i = 0; i < NUM_PLAYERS; i++) {
                             if (players[i].id == maxVotedId) {
                                 players[i].isAlive = false;
+                                pc.printf("[HOST] 투표 결과: %d번 플레이어 처형 처리 완료\n", maxVotedId);
                                 break;
                             }
                         }
                     } else {
                         strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
+                        killedByVoteId = -1;
                     }
 
-                    // 생존 마피아/시민 수 계산
+                    // 생존 마피아/시민 수 계산 (투표 결과 반영 후)
                     int num_mafia = 0;
                     int num_citizen = 0;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
@@ -515,21 +572,21 @@ void L3_FSMrun(void)
                         strcat(msgStr, "\n💀 마피아 승리! 게임 종료.");
                         gameOver = true;
                     } else {
-                        strcat(msgStr, "\n☀️ 낮으로 넘어갑니다.");
+                        strcat(msgStr, "\n🌙 밤으로 넘어갑니다.");
                     }
 
                     msgGenerated = true;
                 }
 
-                // 메시지 전송
+                // 메시지 전송 로직 (기존과 동일)
                 if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
                     int destId = aliveIDs[currentSendIndex];
                     L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\n[Host] %d번 플레이어에게 투표 결과 전송: %s\n", destId, msgStr);
+                    pc.printf("\n[Host] %d번 플레이어에게 투표 결과 전송\n", destId);
                     waitingAck = true;
                 }
 
-                // ACK 수신 처리
+                // ACK 수신 및 다음 플레이어 전송 로직 (기존과 동일)
                 if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
                     uint8_t* dataPtr = L3_LLI_getMsgPtr();
                     uint8_t size = L3_LLI_getSize();
@@ -544,7 +601,6 @@ void L3_FSMrun(void)
                     L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
 
-                // HOST 입력 처리
                 if (waitingHostInput && pc.readable()) {
                     char c = pc.getc();
                     if (c == '1') {
@@ -554,123 +610,168 @@ void L3_FSMrun(void)
 
                         if (currentSendIndex >= aliveCount) {
                             pc.printf("✅ 모든 투표 결과 전송 완료!\n");
+                            
+                            // ⭐ 디버깅: 현재 살아있는 플레이어 목록 출력
+                            pc.printf("=== 투표 후 생존자 목록 ===\n");
+                            for (int i = 0; i < NUM_PLAYERS; i++) {
+                                pc.printf("Player %d (ID:%d): %s\n", i, players[i].id, 
+                                        players[i].isAlive ? "ALIVE" : "DEAD");
+                            }
+                            pc.printf("========================\n");
+                            
                             msgGenerated = false;
                             currentSendIndex = 0;
                             change_state = 3;
                         }
-                    } else {
-                        pc.printf("❗ '1'을 입력해야 진행됩니다.\n");
                     }
                 }
             }
 
 
-            // 5. 게스트 - 투표 결과 수신 및 ACK 전송
-            if (myId != 1 && change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd))  {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-
-                pc.printf("\r\n[게스트 %d] 투표 결과 수신:\n%.*s\n", myId, size, dataPtr);
-
-                int killedId = -1;
-                // "💀 <id>번 플레이어가 처형되었습니다." 부분 찾기
-                char* killPos = strstr((char*)dataPtr, "💀 ");
-                if (killPos != NULL) {
-                    // 처형된 플레이어 ID 파싱
-                    int parsedId = -1;
-                    sscanf(killPos, "💀 %d번 플레이어가 처형되었습니다.", &parsedId);
-                    killedId = parsedId;
-                    pc.printf("💀 %d번 플레이어가 처형됨\n", killedId);
-                } else {
-                    pc.printf("⚖️ 동점으로 처형된 플레이어 없음\n");
-                }
-
-                // 자기 자신이 죽었으면 상태 변경
-                if (killedId == myId) {
-                    pc.printf("❗ 당신은 처형되었습니다.\n");
-                    idead = true;
-                }
-
-                // 게임 종료 메시지 확인
-                if (strstr((char*)dataPtr, "시민 승리") != NULL) {
-                    pc.printf("🎉 시민 승리! 게임 종료 처리 필요\n");
-                    gameOver = true;
-                } else if (strstr((char*)dataPtr, "마피아 승리") != NULL) {
-                    pc.printf("💀 마피아 승리! 게임 종료 처리 필요\n");
-                    gameOver = true;
-                }
-
-                // ACK 전송
-                const char ackMsg[] = "ACK";
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
-                pc.printf("[게스트 %d] ACK 전송 완료\n", myId);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-
-                change_state = 3;  // 투표 종료 상태로 변경
-            }
-
-
-            // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
-           if (change_state == 3) {
-            // 💀 밤에 마피아가 선택한 타겟 적용
-            int mafiaTarget = -1;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
-                    mafiaTarget = players[i].sentVoteId;
-                    break;
-                }
-            }
-
-            // 🩺 의사 효과 반영: 마피아 타겟이 doctorTarget이면 무효, 아니면 죽음
-            if (mafiaTarget != -1) {
+            // 6. 모두 상태 전환: 투표 종료 시 밤(야간) 효과 적용
+            if (change_state == 3) {
+                // 🌙 밤에 마피아가 선택한 타겟 적용
+                int mafiaTarget = -1;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == mafiaTarget &&
-                        players[i].isAlive &&
-                        players[i].id != doctorTarget)
-                    {
-                        players[i].isAlive = false;
-                        pc.printf("💀 밤에 %d번 플레이어가 죽었습니다.\n", players[i].id);
+                    if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
+                        mafiaTarget = players[i].sentVoteId;
+                        break;
                     }
                 }
-            }
 
-            // 🔁 idead 동기화 (자기 자신이 죽었을 경우)
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].id == myId && !players[i].isAlive) {
-                    idead = true;
+                // 🩺 의사 보호 효과 적용
+                bool doctorProtected = false;
+                bool someoneKilledByMafia = false;
+                
+                if (mafiaTarget != -1) {
+                    // 의사가 보호한 대상과 마피아 타겟 비교
+                    if (mafiaTarget == doctorTarget) {
+                        // 보호 성공!
+                        doctorProtected = true;
+                        pc.printf("🛡️ 의사가 %d번 플레이어를 보호했습니다! 마피아의 공격이 실패했습니다.\n", mafiaTarget);
+                    } else {
+                        // 보호하지 못함, 마피아 타겟 죽음
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].id == mafiaTarget && players[i].isAlive) {
+                                players[i].isAlive = false;
+                                someoneKilledByMafia = true;
+                                pc.printf("💀 밤에 %d번 플레이어가 마피아에게 죽었습니다.\n", mafiaTarget);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // 마피아가 아무도 선택하지 않았거나 죽었음
+                    pc.printf("🌙 평화로운 밤이었습니다. (마피아 공격 없음)\n");
                 }
+
+                // 📊 밤 결과 요약 출력
+                if (mafiaTarget != -1) {
+                    pc.printf("\n=== 밤 결과 요약 ===\n");
+                    pc.printf("🔴 마피아 타겟: %d번\n", mafiaTarget);
+                    if (doctorTarget != -1) {
+                        pc.printf("🩺 의사 보호: %d번\n", doctorTarget);
+                    } else {
+                        pc.printf("🩺 의사 보호: 없음 (의사 사망 또는 미선택)\n");
+                    }
+                    
+                    if (doctorProtected) {
+                        pc.printf("✅ 결과: 보호 성공! 아무도 죽지 않음\n");
+                    } else if (someoneKilledByMafia) {
+                        pc.printf("❌ 결과: %d번 플레이어 사망\n", mafiaTarget);
+                    }
+                    pc.printf("==================\n\n");
+                }
+
+                // 🔁 idead 동기화 (자기 자신이 죽었을 경우)
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id == myId && !players[i].isAlive) {
+                        idead = true;
+                        pc.printf("❗ 당신은 죽었습니다.\n");
+                    }
+                }
+
+                // 🔄 밤 단계 변수 초기화
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    players[i].sentVoteId = -1;
+                }
+                doctorTarget = -1;
+
+                // 🧹 투표 관련 변수 초기화
+                voteDoneCount = 0;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].id <= MAX_PLAYER_ID) {
+                        voteResults[players[i].id] = 0;
+                    }
+                    voteCompleted[i] = false;
+                    players[i].Voted = 0;
+                }
+
+                // 📈 게임 종료 조건 재검사 (밤 효과 적용 후)
+                int num_mafia = 0;
+                int num_citizen = 0;
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (!players[i].isAlive) continue;
+
+                    if (players[i].role == ROLE_MAFIA)
+                        num_mafia++;
+                    else
+                        num_citizen++;
+                }
+
+                // 🏁 게임 종료 여부 재판단
+                if (num_mafia == 0) {
+                    pc.printf("🎉 모든 마피아가 제거되었습니다! 시민 승리!\n");
+                    gameOver = true;
+                    main_state = OVER;
+                } else if (num_citizen <= num_mafia) {
+                    pc.printf("💀 마피아가 시민과 같거나 많아졌습니다! 마피아 승리!\n");
+                    gameOver = true;
+                    main_state = OVER;
+                } else {
+                    // 게임 계속, 다음 날로
+                    pc.printf("☀️ 새로운 날이 밝았습니다.\n");
+                    
+                    // 🔄 상태 전환 준비
+                    change_state = 0;
+
+                    if (myId == 1) {
+                        main_state = DAY;  // 호스트는 다음 날 시작
+                    } else {
+                        // 게스트는 생존 여부에 따라 분기
+                        if (!idead) {
+                            main_state = DAY;
+                        } else {
+                            main_state = NIGHT;  // 죽은 플레이어는 관전
+                        }
+                    }
+                }
+
+                // 📊 현재 생존자 목록 출력 (디버깅용)
+                pc.printf("\n=== 현재 생존자 목록 ===\n");
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    pc.printf("Player %d (ID:%d): %s - %s\n", 
+                            i, players[i].id, 
+                            players[i].isAlive ? "ALIVE" : "DEAD",
+                            getRoleName(players[i].role));
+                }
+                pc.printf("========================\n\n");
             }
 
-            // 🔄 sentVoteId, doctorTarget 초기화
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                players[i].sentVoteId = -1;
-            }
-            doctorTarget = -1;
 
-            // 🧹 투표 관련 변수 초기화
-            voteDoneCount = 0;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                voteResults[i] = 0;
-                voteCompleted[i] = false;
-                players[i].Voted = 0;
-            }
+            break;
+        }
 
-            // 🔄 상태 전환 준비
-            change_state = 0;
-
-            // 🏁 게임 종료 여부 체크
-            if (gameOver) {
-                main_state = OVER;
-            } else if (myId == 1) {
+        
+        case NIGHT: // 밤 단계 (대기)
+        {
+            pc.printf("\r\n밤이 되었습니다. 특수 역할들이 행동합니다.\n\n");
+            
+            if (isHost) {
                 main_state = MAFIA;
+                change_state = 0;
             } else {
-                // 디버깅용 출력
-                pc.printf("내 번호는 %d입니다.\n", myId);
-                pc.printf("내 역할은 %s입니다.\n", myRoleName);
-                pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
-
-                // 살아있을 경우 역할별 분기
+                // 플레이어는 역할에 따라 분기
                 if (!idead) {
                     if (strcmp(myRoleName, "Mafia") == 0)
                         main_state = MAFIA;
@@ -679,141 +780,186 @@ void L3_FSMrun(void)
                     else if (strcmp(myRoleName, "Doctor") == 0)
                         main_state = DOCTOR;
                     else
-                        main_state = NIGHT;
-                } else {
-                    main_state = NIGHT;
+                        main_state = NIGHT; // 시민은 대기
                 }
             }
-        }
-
-
-
-
             break;
         }
-
-
-        case NIGHT:
-            // 대기 
-            pc.printf("\r\n\n밤이 되었습니다.\n\n\n");
-            main_state = DAY;
-            break;
 
         
 
-        case POLICE:
-        {
-            static bool sentToPolice = false;
-            static bool waitingAck = false;
-            static int policeId = -1;
+    case POLICE:
+    {
+        static bool sentToPolice = false;
+        static bool waitingAck = false;
+        static int policeId = -1;
+        static bool policePhaseComplete = false;
 
-            // 1. Host: 살아있는 경찰에게 메시지 전송
-            if (myId == 1 && change_state == 0) {
-                for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].role == ROLE_POLICE && players[i].isAlive) {
-                        policeId = players[i].id;
-                        break;
-                    }
-                }
-
-                if (policeId == -1) {
-                    pc.printf("[HOST] 살아있는 경찰 없음. 다음 DAY로 이동\n");
-                    main_state = DAY;
-                    change_state = 0;
-                } else {
-                    char msg[100] = "정체를 확인할 ID를 입력하세요:";
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (players[i].isAlive && players[i].id != policeId) {
-                            char buf[5];
-                            sprintf(buf, " %d", players[i].id);
-                            strcat(msg, buf);
-                        }
-                    }
-
-                    L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
-                    pc.printf("[HOST] %d번 경찰에게 정체 확인 요청 전송\n", policeId);
-                    sentToPolice = true;
-                    waitingAck = true;
-                    change_state = 1;
+        // 1. Host: 살아있는 경찰에게 메시지 전송
+        if (myId == 1 && change_state == 0) {
+            policePhaseComplete = false;
+            
+            // 살아있는 경찰 찾기
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].role == ROLE_POLICE && players[i].isAlive) {
+                    policeId = players[i].id;
+                    break;
                 }
             }
 
-            // 2. Host: 경찰 응답 처리 → 정체 전송
-            if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                int targetId = atoi((char*)dataPtr);
-                pc.printf("[HOST] 경찰이 %d번을 선택했습니다.\n", targetId);
-
-                const char* roleStr = "Unknown";
+            if (policeId == -1) {
+                pc.printf("[HOST] 살아있는 경찰 없음. DAY로 이동\n");
+                policePhaseComplete = true;
+                change_state = 3; // 바로 DAY로 전환
+            } else {
+                char msg[100] = "정체를 확인할 ID를 입력하세요:";
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == targetId) {
-                        roleStr = getRoleName(players[i].role);
-                        break;
+                    if (players[i].isAlive && players[i].id != policeId) {
+                        char buf[5];
+                        sprintf(buf, " %d", players[i].id);
+                        strcat(msg, buf);
                     }
                 }
 
-                L3_LLI_dataReqFunc((uint8_t*)roleStr, strlen(roleStr), policeId);
-                pc.printf("[HOST] %d번의 정체 '%s'를 %d번 경찰에게 전송 완료\n", targetId, roleStr, policeId);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2;
-            }
-
-            // 3. Guest: 경찰이 ID 입력
-            if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
-                L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 0)
-            {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-                pc.printf("[Police] 메시지 수신: %.*s\n", size, dataPtr);
-
-                int inputId = -1;
-                bool valid = false;
-                while (!valid) {
-                    pc.printf("[Police] 확인할 ID 입력: ");
-                    while (!pc.readable());
-                    char ch = pc.getc();
-                    pc.printf("%c", ch);
-
-                    if (ch >= '0' && ch <= '9') {
-                        inputId = ch - '0';
-                        valid = true;
-                    } else {
-                        pc.printf("\n❗ 숫자만 입력하세요.");
-                    }
-                }
-
-                char reply[4];
-                sprintf(reply, "%d", inputId);
-                L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
-                pc.printf("[Police] Host에 정체 확인 요청 전송 완료\n");
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
+                L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
+                pc.printf("[HOST] %d번 경찰에게 정체 확인 요청 전송\n", policeId);
+                sentToPolice = true;
+                waitingAck = true;
                 change_state = 1;
             }
-
-            // 4. Guest: 경찰이 정체 응답 수신
-            if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
-                L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 1)
-            {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-                pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2;
-            }
-
-            // 5. 상태 전환
-            if (change_state == 2) {
-                pc.printf("🌤️ POLICE 단계 종료 → 다음 DAY로 이동\n");
-                main_state = DAY;
-                change_state = 0;
-            }
-
-            break;
         }
 
+        // 2. Host: 경찰 응답 처리 → 정체 전송 → DAY 전환 신호 전송
+        if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+            uint8_t* dataPtr = L3_LLI_getMsgPtr();
+            int targetId = atoi((char*)dataPtr);
+            pc.printf("[HOST] 경찰이 %d번을 선택했습니다.\n", targetId);
+
+            const char* roleStr = "Unknown";
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].id == targetId) {
+                    roleStr = getRoleName(players[i].role);
+                    break;
+                }
+            }
+
+            // 정체 정보 전송
+            L3_LLI_dataReqFunc((uint8_t*)roleStr, strlen(roleStr), policeId);
+            pc.printf("[HOST] %d번의 정체 '%s'를 %d번 경찰에게 전송 완료\n", targetId, roleStr, policeId);
+
+            L3_event_clearEventFlag(L3_event_msgRcvd);
+            
+            // 경찰 단계 완료 - 모든 플레이어에게 DAY 전환 신호 전송
+            policePhaseComplete = true;
+            change_state = 2;
+        }
+
+        // 3. Host: 모든 플레이어에게 DAY 전환 신호 전송
+        if (myId == 1 && change_state == 2 && policePhaseComplete) {
+            char dayMsg[] = "POLICE_PHASE_END";
+            
+            // 모든 살아있는 플레이어에게 전송
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].isAlive && players[i].id != myId) {
+                    L3_LLI_dataReqFunc((uint8_t*)dayMsg, strlen(dayMsg), players[i].id);
+                }
+            }
+            
+            pc.printf("🌤️ POLICE 단계 종료. 모든 플레이어에게 DAY 전환 신호 전송\n");
+            change_state = 3;
+        }
+
+        // 4. Guest: 경찰이 ID 입력 및 전송
+        if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
+            L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 0)
+        {
+            uint8_t* dataPtr = L3_LLI_getMsgPtr();
+            uint8_t size = L3_LLI_getSize();
+            
+            // DAY 전환 신호 확인
+            if (strncmp((char*)dataPtr, "POLICE_PHASE_END", 16) == 0) {
+                pc.printf("[Police] DAY 전환 신호 수신\n");
+                change_state = 3;
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                break;
+            }
+            
+            pc.printf("[Police] 메시지 수신: %.*s\n", size, dataPtr);
+
+            int inputId = -1;
+            bool valid = false;
+            while (!valid) {
+                pc.printf("[Police] 확인할 ID 입력: ");
+                while (!pc.readable());
+                char ch = pc.getc();
+                pc.printf("%c", ch);
+
+                if (ch >= '0' && ch <= '9') {
+                    inputId = ch - '0';
+                    valid = true;
+                } else {
+                    pc.printf("\n❗ 숫자만 입력하세요.");
+                }
+            }
+
+            char reply[4];
+            sprintf(reply, "%d", inputId);
+            L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
+            pc.printf("[Police] Host에 정체 확인 요청 전송 완료\n");
+
+            L3_event_clearEventFlag(L3_event_msgRcvd);
+            change_state = 1;
+        }
+
+        // 5. Guest: 경찰이 정체 응답 수신
+        if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
+            L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 1)
+        {
+            uint8_t* dataPtr = L3_LLI_getMsgPtr();
+            uint8_t size = L3_LLI_getSize();
+            
+            // DAY 전환 신호 확인
+            if (strncmp((char*)dataPtr, "POLICE_PHASE_END", 16) == 0) {
+                pc.printf("[Police] DAY 전환 신호 수신\n");
+                change_state = 3;
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                break;
+            }
+            
+            pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
+            L3_event_clearEventFlag(L3_event_msgRcvd);
+            change_state = 2; // 정체 확인 완료, DAY 전환 대기
+        }
+
+        // 6. Guest: 경찰이 아닌 플레이어들의 DAY 전환 신호 수신
+        if (myId != 1 && (strcmp(myRoleName, "Police") != 0 || idead) &&
+            L3_event_checkEventFlag(L3_event_msgRcvd))
+        {
+            uint8_t* dataPtr = L3_LLI_getMsgPtr();
+            
+            if (strncmp((char*)dataPtr, "POLICE_PHASE_END", 16) == 0) {
+                pc.printf("[Player] DAY 전환 신호 수신\n");
+                change_state = 3;
+            }
+            
+            L3_event_clearEventFlag(L3_event_msgRcvd);
+        }
+
+        // 7. 모든 플레이어: DAY 상태로 전환
+        if (change_state == 3) {
+            pc.printf("🌤️ POLICE 단계 종료 → DAY로 이동\n");
+            main_state = DAY;
+            change_state = 0;
+            
+            // 정적 변수 초기화
+            sentToPolice = false;
+            waitingAck = false;
+            policeId = -1;
+            policePhaseComplete = false;
+        }
+
+        break;
+    }
 
         case DOCTOR:
         {
