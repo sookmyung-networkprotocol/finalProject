@@ -939,30 +939,6 @@ void L3_FSMrun(void)
                 change_state = 2; // 대기 상태로
             }
 
-            // 4. 모든 플레이어: 대기 중 브로드캐스트 수신 체크
-            if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-                
-                // DAY 전환 브로드캐스트 신호 확인
-                if (size == 9 && strncmp((char*)dataPtr, "DAY_START", 9) == 0) {
-                    if (myId == 1) {
-                        pc.printf("🌅 [HOST] DAY 전환 브로드캐스트 수신 → DAY로 전환\n");
-                    } else {
-                        pc.printf("🌅 [%s] DAY 전환 브로드캐스트 수신 → DAY로 전환\n", myRoleName);
-                    }
-                    
-                    main_state = DAY;
-                    change_state = 0;
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
-                    
-                    // 초기화
-                    sentToDoctor = false;
-                    waitingAck = false;
-                    doctorId = -1;
-                    return; // 다른 처리 건너뛰기
-                }
-            }
 
             // 5. 의사가 아닌 플레이어들: 대기 후 자동 처리
             if (change_state == 2) {
@@ -1008,12 +984,12 @@ void L3_FSMrun(void)
                     doctorTarget = -1;
 
                     if (myId == 1) {
-                        pc.printf("🌅 [HOST] DOCTOR 단계 완료 → DAY로 전환\n");
+                        pc.printf("🌅 [HOST] DOCTOR 단계 완료 → POLICE로 전환\n");
                     } else {
-                        pc.printf("🌅 [%s] DOCTOR 단계 완료 → DAY로 전환\n", myRoleName);
+                        pc.printf("🌅 [%s] DOCTOR 단계 완료 → POLICE로 전환\n", myRoleName);
                     }
                     
-                    main_state = DAY;
+                    main_state = POLICE;
                     change_state = 0;
                     waitCounter = 0;
                     
@@ -1168,20 +1144,7 @@ void L3_FSMrun(void)
             uint8_t* dataPtr = L3_LLI_getMsgPtr();
             uint8_t size = L3_LLI_getSize();
             
-            // DAY 전환 브로드캐스트 신호 확인
-            if (size == 9 && strncmp((char*)dataPtr, "DAY_START", 9) == 0) {
-                pc.printf("🌅 [%s] DAY 전환 브로드캐스트 수신 → DAY로 전환\n", myRoleName);
-                main_state = DAY;
-                change_state = 0;
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-                
-                // 초기화
-                waitingAck = false;
-                mafiaMessageSent = false;
-                mafiaId = -1;
-                aliveCount = 0;
-                return; // 다른 처리 건너뛰기
-            }
+
         }
 
         // 4. Guest(마피아): 대기 후 DOCTOR로 전환
