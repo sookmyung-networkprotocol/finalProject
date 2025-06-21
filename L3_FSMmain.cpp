@@ -23,6 +23,7 @@ void L3_initFSM(uint8_t id, uint8_t destId) {
 void L3service_processInputWord(void)
 {
     static bool printedInputLog = false;
+    static size_t inputLen = 0;
     char c = pc.getc();
 
     if (!printedInputLog) {
@@ -32,15 +33,20 @@ void L3service_processInputWord(void)
 
     if (!L3_event_checkEventFlag(L3_event_dataToSend)) {
         if (c == '\n' || c == '\r') {
-            originalWord[wordLen++] = '\0';
-            memcpy(sdu, originalWord, wordLen);
-            L3_event_setEventFlag(L3_event_dataToSend);
-            wordLen = 0;
+            if (inputLen > 0) {
+                originalWord[inputLen] = '\0';           // 문자열 종료
+                wordLen = inputLen;                      // 💥 핵심 수정
+                memcpy(sdu, originalWord, wordLen);      // 복사
+                L3_event_setEventFlag(L3_event_dataToSend);
+                pc.printf("[DEBUG] 입력 완료. wordLen=%d, word='%s'\n", wordLen, originalWord);  // 로그
+            }
+            inputLen = 0;  // 다음 입력을 위해 초기화
         } else {
-            if (wordLen < sizeof(originalWord) - 1)
-                originalWord[wordLen++] = c;
+            if (inputLen < sizeof(originalWord) - 1)
+                originalWord[inputLen++] = c;
         }
     }
+
 }
 
 
@@ -69,16 +75,17 @@ void L3_FSMrun() {
     if (main_state != prev_state) {
         pc.printf("\n[L3] 상태 전이: %d → %d\n", prev_state, main_state);
 
+        // 입력 인터럽트 설정
         if (main_state == DAY) {
             if (myId != 1)
-                pc.attach(&L3service_processInputWord, Serial::RxIrq);  // Guest만 attach
+                pc.attach(&L3service_processInputWord, Serial::RxIrq);
             else
-                pc.attach(NULL, Serial::RxIrq);  // Host는 입력 직접 처리
+                pc.attach(NULL, Serial::RxIrq);
         } else {
-            pc.attach(NULL, Serial::RxIrq);  // 다른 상태에서는 detach
+            pc.attach(NULL, Serial::RxIrq);
         }
 
-        // 밤에서 낮으로 전이되는 경우 결과 반영
+        // 밤에서 낮으로 전이되는 경우에만 실행
         if (main_state == DAY && prev_state == POLICE) {
             L3_finalizeNight();
         }
@@ -86,7 +93,17 @@ void L3_FSMrun() {
         prev_state = main_state;
     }
 
-    // 상태에 따른 처리
+    // Guest가 vote start 신호 'S'를 수신한 경우 상태 전이
+    if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+        uint8_t* msg = L3_LLI_getMsgPtr();
+        uint8_t size = L3_LLI_getSize();
+        if (size == 1 && msg[0] == 'S') {
+            pc.printf("[DEBUG] 투표 시작 신호 수신 → VOTE 상태로 전이\n");
+            main_state = VOTE;
+        }
+        L3_event_clearEventFlag(L3_event_msgRcvd);
+    }
+
     switch (main_state) {
         case L3STATE_IDLE:     L3_handleIdle(); break;
         case MATCH:            L3_handleMatch(); break;
@@ -96,6 +113,29 @@ void L3_FSMrun() {
             static int count = 0;
             if (count++ < 1)
                 pc.printf("[DEBUG] case DAY 진입\n");
+
+            if (prev_state == POLICE) {
+                L3_finalizeNight();
+            }
+
+            // Host가 v 입력 시 투표 시작
+            if (myId == 1 && pc.readable()) {
+                char c = pc.getc();
+                pc.printf("[DEBUG] HOST 키 입력 감지: '%c'\n", c);
+                if (c == 'v') {
+                    pc.printf("[HOST] 투표를 시작합니다.\n");
+                    // 모든 게스트에게 vote 시작 신호 전송
+                    uint8_t signal[] = {'S'};
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].isAlive && players[i].id != myId) {
+                            L3_LLI_dataReqFunc(signal, 1, players[i].id);
+                        }
+                    }
+                    main_state = VOTE;
+                    return;
+                }
+            }
+
             L3_handleDay();
             break;
         }
