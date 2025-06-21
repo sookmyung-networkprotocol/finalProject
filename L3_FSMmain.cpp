@@ -65,35 +65,41 @@ void L3_finalizeNight() {
 
 // FSM 실행 루프
 void L3_FSMrun() {
-    // 상태 전이 출력 및 Serial attach/detach
+    // 상태 전이 감지 및 attach 처리
     if (main_state != prev_state) {
         pc.printf("\n[L3] 상태 전이: %d → %d\n", prev_state, main_state);
 
-        // attach는 DAY 상태에서만 사용
         if (main_state == DAY) {
-            pc.attach(&L3service_processInputWord, Serial::RxIrq);
+            if (myId != 1)
+                pc.attach(&L3service_processInputWord, Serial::RxIrq);  // Guest만 attach
+            else
+                pc.attach(NULL, Serial::RxIrq);  // Host는 입력 직접 처리
         } else {
-            pc.attach(NULL, Serial::RxIrq);  // 인터럽트 비활성화
+            pc.attach(NULL, Serial::RxIrq);  // 다른 상태에서는 detach
+        }
+
+        // 밤에서 낮으로 전이되는 경우 결과 반영
+        if (main_state == DAY && prev_state == POLICE) {
+            L3_finalizeNight();
         }
 
         prev_state = main_state;
     }
 
+    // 상태에 따른 처리
     switch (main_state) {
         case L3STATE_IDLE:     L3_handleIdle(); break;
         case MATCH:            L3_handleMatch(); break;
         case MODE_1:           L3_handleMode1(); break;
+
         case DAY: {
             static int count = 0;
             if (count++ < 1)
                 pc.printf("[DEBUG] case DAY 진입\n");
-
-            if (prev_state == POLICE) {
-                L3_finalizeNight();
-            }
             L3_handleDay();
             break;
         }
+
         case VOTE:             L3_handleVote(); break;
         case NIGHT:            L3_handleMafia(); break;
         case DOCTOR:           L3_handleDoctor(); break;
@@ -102,12 +108,5 @@ void L3_FSMrun() {
         case OVER:             L3_handleOver(); break;
         case TYPING:           break;
     }
-
-    if (main_state == DAY) {
-    if (prev_state == POLICE) {
-        L3_finalizeNight();  // 밤 → 낮으로 넘어올 때만 실행
-        }
-    L3_handleDay();  // ✅ 낮 FSM은 항상 실행
-    }
-
 }
+

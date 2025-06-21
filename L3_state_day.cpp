@@ -10,7 +10,10 @@ void L3_handleDay()
     static size_t inputLen = 0;
     static bool printedNotice = false;
 
-    pc.printf("[DEBUG] L3_handleDay() 진입\n");
+    static int count = 0;
+    if (count++ < 1)
+        pc.printf("[DEBUG] L3_handleDay() 진입\n");
+
 
     // 안내 메시지는 한 번만 출력
     if (!printedNotice) {
