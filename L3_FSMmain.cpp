@@ -73,7 +73,13 @@ void L3_FSMrun() {
         case L3STATE_IDLE:     L3_handleIdle(); break;
         case MATCH:            L3_handleMatch(); break;
         case MODE_1:           L3_handleMode1(); break;
-        case DAY:              L3_handleDay(); break;
+        case DAY:
+            pc.printf("[DEBUG] case DAY 진입됨 (prev_state=%d)\n", prev_state);
+            if (prev_state == POLICE) {
+                L3_finalizeNight();  // 조건부 처리
+            }
+            L3_handleDay();  // ✅ 반드시 항상 호출되어야 함
+            break;
         case VOTE:             L3_handleVote(); break;
         case NIGHT:            L3_handleMafia(); break;
         case DOCTOR:           L3_handleDoctor(); break;
