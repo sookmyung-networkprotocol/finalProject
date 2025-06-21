@@ -18,12 +18,11 @@
 
 
 extern int change_state;
-#define NUM_PLAYERS 4
-#define NUM_ROLES 4
+#define NUM_PLAYERS 3  // 4에서 3으로 변경
+#define NUM_ROLES 3    // 4에서 3으로 변경
 
-// 역할 정의
+// 역할 정의 (시민 제외)
 typedef enum {
-    ROLE_CITIZEN,
     ROLE_MAFIA,
     ROLE_POLICE,
     ROLE_DOCTOR
@@ -39,7 +38,7 @@ typedef struct {
 } Player;
 
 // extern
-extern Player players[4];
+extern Player players[3];  // 4에서 3으로 변경
 
 // 플레이어 ID 목록
 extern Player players[NUM_PLAYERS]; 

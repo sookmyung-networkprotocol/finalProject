@@ -20,7 +20,7 @@ int doctorTarget = -1;
 //FSM state -------------------------------------------------
 #define L3STATE_IDLE                0
 
-#define NUM_PLAYERS 4
+#define NUM_PLAYERS 3
 static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
 
 
@@ -149,7 +149,7 @@ void L3_FSMrun(void)
             { 
                 createPlayers();
 
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 3; i++) {
                     pc.printf("\r\nPlayer %d - ID: %d, Role: %s\n\n", 
                             i, players[i].id, getRoleName(players[i].role));
                 }
@@ -162,7 +162,7 @@ void L3_FSMrun(void)
             
             // 중간점 - 호스트이면 역할 전송 
             if (myId == 1 && change_state == 1) {
-                if (!waitingAck && !waitingHostInput && currentSendIndex < 4) {
+                if (!waitingAck && !waitingHostInput && currentSendIndex < 3) {
                     myDestId = players[currentSendIndex].id;
 
                     strcpy(msgStr, getRoleName(players[currentSendIndex].role));
@@ -196,7 +196,7 @@ void L3_FSMrun(void)
                             waitingHostInput = false;
                             currentSendIndex++;
 
-                            if (currentSendIndex >= 4) {
+                            if (currentSendIndex >= 3) {
                                 pc.printf("\r\n게임이 시작되었습니다.\n\n");
                                 change_state = 2;  // 모든 역할 전송 완료 후 상태 전환
                             } else {
@@ -309,7 +309,7 @@ void L3_FSMrun(void)
                     sprintf(msgStr, "투표하세요. 본인을 제외한 ID 중 선택: ");
                     for (int i = 0; i < aliveCount; i++) {
                         if (aliveIDs[i] != destId) {
-                            char idStr[4];
+                            char idStr[3];
                             sprintf(idStr, "%d ", aliveIDs[i]);
                             strcat(msgStr, idStr);
                         }
@@ -431,7 +431,7 @@ void L3_FSMrun(void)
                 }
 
                 // 투표 결과 전송 (Host = 1)
-                char ackMsg[4];
+                char ackMsg[3];
                 sprintf(ackMsg, "%d", voteTo);
                 L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
@@ -802,7 +802,7 @@ void L3_FSMrun(void)
                         }
                     }
 
-                    char reply[4];
+                    char reply[3];
                     sprintf(reply, "%d", inputId);
                     L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
                     pc.printf("[Police] Host에 정체 확인 요청 전송 완료\n");
@@ -954,7 +954,7 @@ void L3_FSMrun(void)
                     }
                 }
 
-                char reply[4];
+                char reply[3];
                 sprintf(reply, "%d", inputId);
                 L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
                 pc.printf("[의사] %d번을 살리기로 선택하고 Host에 전송 완료\n", inputId);
@@ -1005,7 +1005,7 @@ void L3_FSMrun(void)
                 char msgStr[64] = "죽일 ID를 선택하세요: ";
                 for (int i = 0; i < aliveCount; i++) {
                     if (aliveIDs[i] != mafiaId) {
-                        char idStr[4];
+                        char idStr[3];
                         sprintf(idStr, "%d ", aliveIDs[i]);
                         strcat(msgStr, idStr);
                     }
@@ -1098,7 +1098,7 @@ void L3_FSMrun(void)
                 }
             }
 
-            char reply[4];
+            char reply[3];
             sprintf(reply, "%d", voteTo);
             L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
             pc.printf("[Mafia] %d번을 죽이기로 선택하여 Host에 전송 완료\n", voteTo);
@@ -1141,7 +1141,7 @@ void L3_FSMrun(void)
             // 대기 
             pc.printf("\r\n\n모드 2 단계입니다.\n\n\n");
             
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 3; i++) {
             pc.printf("\r\nPlayer %d - ID: %d, Role: %s, Alive: %d\n\n", 
                     i, players[i].id, getRoleName(players[i].role), dead[i]);
             }

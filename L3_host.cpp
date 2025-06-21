@@ -6,11 +6,11 @@
 
 
 Player players[NUM_PLAYERS];
-static uint8_t playerIds[NUM_PLAYERS] = {2, 3, 7, 8};
+static uint8_t playerIds[NUM_PLAYERS] = {2, 7, 8};  // ID 3(시민) 제거
 
 // 미리 정의된 역할 배정 (ID별로 고정)
-// 2: Police, 3: Citizen, 7: Mafia, 8: Doctor
-static Role predefinedRoles[NUM_PLAYERS] = {ROLE_POLICE, ROLE_CITIZEN, ROLE_MAFIA, ROLE_DOCTOR};
+// 2: Police, 7: Mafia, 8: Doctor (시민 제외)
+static Role predefinedRoles[NUM_PLAYERS] = {ROLE_POLICE, ROLE_MAFIA, ROLE_DOCTOR};
 
 // 플레이어 초기화 함수
 void initPlayer(Player* p, uint8_t id, Role role) {
@@ -43,10 +43,9 @@ void createPlayers() {
     }
 }
 
-// 역할 문자열 반환 함수
+// 역할 문자열 반환 함수 (시민 케이스 제거)
 const char* getRoleName(Role r) {
     switch (r) {
-        case ROLE_CITIZEN: return "Citizen";
         case ROLE_MAFIA:   return "Mafia";
         case ROLE_POLICE:  return "Police";
         case ROLE_DOCTOR:  return "Doctor";
