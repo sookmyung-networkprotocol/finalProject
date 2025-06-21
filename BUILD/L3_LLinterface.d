@@ -139,4 +139,4 @@ L3_LLinterface.o: ../L3_LLinterface.cpp ../mbed_config.h ../mbed.h \
  ../mbed/platform/FileSystemHandle.h ../mbed/platform/DirHandle.h \
  ../mbed/platform/CriticalSectionLock.h ../mbed/platform/DeepSleepLock.h \
  ../mbed/platform/mbed_stats.h ../mbed/platform/ScopedLock.h \
- ../L3_FSMevent.h ../L3_msg.h ../protocol_parameters.h
+ ../L3_FSMevent.h ../L3_msg.h ../protocol_parameters.h ../L2_msg.h

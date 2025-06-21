@@ -139,4 +139,4 @@ L3_state_day.o: ../L3_state_day.cpp ../mbed_config.h ../L3_shared.h \
  ../mbed/platform/FileSystemHandle.h ../mbed/platform/DirHandle.h \
  ../mbed/platform/CriticalSectionLock.h ../mbed/platform/DeepSleepLock.h \
  ../mbed/platform/mbed_stats.h ../mbed/platform/ScopedLock.h \
- ../L3_LLinterface.h ../L3_FSMevent.h
+ ../L3_LLinterface.h ../L3_FSMevent.h ../L2_msg.h

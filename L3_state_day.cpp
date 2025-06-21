@@ -4,6 +4,16 @@
 #include "L2_msg.h"
 #include <cstring>
 
+// 안전하게 L2 포맷 붙여 전송하는 함수
+void L3_sendRaw(uint8_t* payload, uint8_t length, uint8_t destId)
+{
+    uint8_t pdu[200];
+    uint8_t seq = 0;
+    uint8_t size = L2_msg_encodeData(pdu, payload, seq, length, 1);
+    pc.printf("[DEBUG] SEND pdu[0]=%d, size=%d, destId=%d\n", pdu[0], size, destId);
+    L3_LLI_dataReqFunc(pdu, size, destId);
+}
+
 void L3_handleDay()
 {
     static char inputBuffer[256] = {0};
@@ -40,12 +50,7 @@ void L3_handleDay()
                 // 송신자 ID를 붙여서 보냄
                 char taggedMsg[1030];
                 snprintf(taggedMsg, sizeof(taggedMsg), "%d|%s", myId, originalWord);
-
-                // L2_msg_encodeData() 사용해 패킷 생성 후 전송
-                uint8_t pdu[200];
-                uint8_t seq = 0;
-                uint8_t size = L2_msg_encodeData(pdu, (uint8_t*)taggedMsg, seq, strlen(taggedMsg), 1);
-                L3_LLI_dataReqFunc(pdu, size, players[i].id);
+                L3_sendRaw((uint8_t*)taggedMsg, strlen(taggedMsg), players[i].id);
             }
         }
         pc.printf("\n[YOU] %s\n", originalWord);
@@ -58,6 +63,8 @@ void L3_handleDay()
         uint8_t* msg = L3_LLI_getMsgPtr();
         uint8_t from = L3_LLI_getSrcId();
         uint8_t len = L3_LLI_getSize();
+
+        pc.printf("[DEBUG] RECEIVED from %d, size=%d, msg=%.*s\n", from, len, len, msg);
 
         // "ID|내용" 포맷 파싱
         char* sep = (char*)memchr(msg, '|', len);
