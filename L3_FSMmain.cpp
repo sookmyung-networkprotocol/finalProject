@@ -7,17 +7,11 @@
 #include "L2_FSMmain.h"
 #include "L3_host.h"
 
-// 전역 변수들
 int change_state = 0;
-static bool isHost = false;
-static bool isInTeam = false;
-static int playerCnt = 0;
-static int rcvdCnfCnt = 0;
 
 // 게임 상태 변수들
 static int currentSendIndex = 0;
 static bool waitingAck = false;
-static int doctorTarget = -1;
 static char myRoleName[16] = {0};
 static bool idead = false;
 

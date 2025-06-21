@@ -1,16 +1,16 @@
-#include <time.h>
-#include <cstdlib>   
-#include <ctime> 
+#include "mbed.h"
 #include "L3_host.h"
+
+bool isHost = false;
+bool isInTeam = false;
+int playerCnt = 0;
+int rcvdCnfCnt = 0;
+int doctorTarget = -1;
+bool dead[NUM_PLAYERS] = {false, false, false, false};
+
 
 Player players[NUM_PLAYERS];
 static uint8_t playerIds[NUM_PLAYERS] = {2, 3, 7, 8};
-
-// 게임 상태 변수들
-static int playerCnt = 0;
-static int rcvdCnfCnt = 0;
-static bool isInTeam = false;
-static bool isHost = false;
 
 // 게임 로직 함수들 추가
 bool is_game_over() {

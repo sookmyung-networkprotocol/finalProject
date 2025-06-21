@@ -31,17 +31,18 @@
 #define MSG_TYPE_GAME_STATE   32  // 게임 상태 동기화
 // 메시지 타입 정의 끝 -------------------------------------------------
 
-// 게임 상태 변수들 -------------------------------------------------
+#define NUM_PLAYERS 4
+#define NUM_ROLES 4
+
+// 게임 상태 변수들 (NUM_PLAYERS 정의 후에 위치) -------------------------------------------------
 extern int change_state;
 extern bool isHost;
 extern bool isInTeam;
 extern int playerCnt;
 extern int rcvdCnfCnt;
 extern int doctorTarget;
+extern bool dead[NUM_PLAYERS];  // 이제 NUM_PLAYERS가 정의된 후라서 문제없음
 // 게임 상태 변수들 끝 -------------------------------------------------
-
-#define NUM_PLAYERS 4
-#define NUM_ROLES 4
 
 // 역할 정의
 typedef enum {
