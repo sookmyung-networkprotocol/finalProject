@@ -272,17 +272,11 @@ void L3_FSMrun(void)
                     if (c == 'v') {
                         pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\n");
                         
-                        // 모든 살아있는 플레이어에게 투표 시작 신호 전송
-                        const char voteStartMsg[] = "VOTE_START";
-                        for (int i = 0; i < NUM_PLAYERS; i++) {
-                            if (players[i].isAlive && players[i].id != 1) {
-                                L3_LLI_dataReqFunc((uint8_t*)voteStartMsg, strlen(voteStartMsg), players[i].id);
-                            }
-                        }
-                        
+                        // 즉시 상태 변경
                         printedOnce = false;
                         change_state = 0;
                         main_state = VOTE;
+                        return; // 함수 즉시 종료하여 다른 처리 방지
                     }
                 }
                 
@@ -293,6 +287,29 @@ void L3_FSMrun(void)
             }
             // 게스트: 채팅 참여
             else {
+                // 메시지 수신 처리를 먼저 확인 (투표 시작 신호 체크)
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* msg = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+                    
+                    // 투표 시작 신호 체크
+                    if (size >= 10 && strncmp((char*)msg, "VOTE_START", 10) == 0) {
+                        pc.printf("\r\n🗳️ 투표가 시작됩니다.\n");
+                        printedOnce = false;
+                        change_state = 0;
+                        main_state = VOTE;
+                        L3_event_clearEventFlag(L3_event_msgRcvd);
+                        return; // 즉시 상태 변경
+                    } else {
+                        // 다른 플레이어의 채팅 메시지 출력
+                        pc.printf("\r\n%.*s\n", size, msg);
+                        if (!idead) {
+                            pc.printf("💬 > ");
+                        }
+                        L3_event_clearEventFlag(L3_event_msgRcvd);
+                    }
+                }
+                
                 // 살아있는 플레이어만 입력 가능
                 if (!idead) {
                     // 키보드 입력 처리
@@ -326,7 +343,7 @@ void L3_FSMrun(void)
                     
                     // 메시지 전송 처리
                     if (L3_event_checkEventFlag(L3_event_dataToSend)) {
-                        // 내 메시지를 포맷팅해서 표시
+                        // 내 메시지를 포맷팅
                         char formattedMsg[L3_MAXDATASIZE + 20];
                         sprintf(formattedMsg, "[Player %d] %s", myId, originalWord);
                         
@@ -343,27 +360,6 @@ void L3_FSMrun(void)
                         wordLen = 0;
                         L3_event_clearEventFlag(L3_event_dataToSend);
                     }
-                }
-                
-                // 메시지 수신 처리
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* msg = L3_LLI_getMsgPtr();
-                    
-                    // 투표 시작 신호 체크
-                    if (strncmp((char*)msg, "VOTE_START", 10) == 0) {
-                        pc.printf("\r\n🗳️ 투표가 시작됩니다.\n");
-                        printedOnce = false;
-                        change_state = 0;
-                        main_state = VOTE;
-                    } else {
-                        // 다른 플레이어의 채팅 메시지 출력
-                        pc.printf("\r\n%s\n", msg);
-                        if (!idead) {
-                            pc.printf("💬 > ");
-                        }
-                    }
-                    
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
             }
             
@@ -413,7 +409,26 @@ void L3_FSMrun(void)
                 pc.printf("\r\n-----------------------------------------\r\n");
 
                 change_state = 1;
-            }
+
+                // 즉시 첫 번째 플레이어에게 투표 요청 전송
+                if (aliveCount > 0) {
+                    int destId = aliveIDs[0];
+                    msgStr[0] = '\0';
+
+                    sprintf(msgStr, "투표하세요. 본인을 제외한 ID 중 선택: ");
+                    for (int i = 0; i < aliveCount; i++) {
+                        if (aliveIDs[i] != destId) {
+                            char idStr[4];
+                            sprintf(idStr, "%d ", aliveIDs[i]);
+                            strcat(msgStr, idStr);
+                        }
+                    }
+
+                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
+                    pc.printf("\r\n[Host] %d번 플레이어에게 투표 요청: %s", destId, msgStr);
+
+                    waitingAck = true;
+                    }
 
 
             // 2. 투표 메시지 전송 단계 (호스트)
