@@ -139,4 +139,4 @@ L3_state_idle.o: ../L3_state_idle.cpp ../mbed_config.h ../L3_state_idle.h \
  ../mbed/platform/FileSystemHandle.h ../mbed/platform/DirHandle.h \
  ../mbed/platform/CriticalSectionLock.h ../mbed/platform/DeepSleepLock.h \
  ../mbed/platform/mbed_stats.h ../mbed/platform/ScopedLock.h ../L3_host.h \
- ../L3_LLinterface.h ../L3_FSMevent.h
+ ../L3_LLinterface.h ../L3_FSMevent.h ../L2_FSMmain.h

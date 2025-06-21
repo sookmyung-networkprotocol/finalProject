@@ -100,6 +100,10 @@ void L3_FSMrun() {
         case OVER:
             L3_handleOver();
             break;
+        
+            case TYPING:
+            break;
+
     }
 
     // 밤 종료 → DAY 진입 시, 죽음/생존 반영
