@@ -706,124 +706,178 @@ void L3_FSMrun(void)
             static bool sentToPolice = false;
             static int policeId = -1;
 
-            // 1. Host: 살아있는 경찰에게 메시지 전송
-            if (myId == 1 && change_state == 0) {
-                for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].role == ROLE_POLICE && players[i].isAlive) {
-                        policeId = players[i].id;
-                        break;
-                    }
+            // 생존자 상태 업데이트 (매번 체크)
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].id == myId && !players[i].isAlive) {
+                    idead = true;
                 }
+            }
 
-                if (policeId == -1) {
-                    pc.printf("👮‍♂️ [HOST] 살아있는 경찰 없음. DAY로 바로 전환\n");
-                    main_state = DAY;
-                    change_state = 0;
-                } else {
-                    char msg[100] = "정체를 확인할 ID를 입력하세요:";
+            // Host
+            if (myId == 1) {
+                if (change_state == 0) {
+                    // 경찰 찾기
+                    policeId = -1;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (players[i].isAlive && players[i].id != policeId) {
-                            char buf[5];
-                            sprintf(buf, " %d", players[i].id);
-                            strcat(msg, buf);
+                        if (players[i].role == ROLE_POLICE && players[i].isAlive) {
+                            policeId = players[i].id;
+                            break;
                         }
                     }
 
-                    L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
-                    pc.printf("[HOST] %d번 경찰에게 정체 확인 요청 전송\n", policeId);
-                    change_state = 1;
-                }
-            }
-
-            // 2. Host: 경찰 응답 처리 → 정체 전송 → 바로 DAY로 전환
-            if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                int targetId = atoi((char*)dataPtr);
-                pc.printf("[HOST] 경찰이 %d번을 선택했습니다.\n", targetId);
-
-                const char* roleStr = "Unknown";
-                for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == targetId) {
-                        roleStr = getRoleName(players[i].role);
-                        break;
-                    }
-                }
-
-                L3_LLI_dataReqFunc((uint8_t*)roleStr, strlen(roleStr), policeId);
-                pc.printf("[HOST] %d번의 정체 '%s'를 %d번 경찰에게 전송 완료\n", targetId, roleStr, policeId);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-                
-                // Host 업무 완료 - 바로 DAY로 전환
-                pc.printf("🌤️ [HOST] POLICE 단계 종료 → DAY로 전환\n");
-                main_state = DAY;
-                change_state = 0;
-                
-                // 초기화
-                sentToPolice = false;
-                policeId = -1;
-            }
-
-            // 3. Guest: 경찰이 ID 입력
-            if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
-                L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 0)
-            {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-                pc.printf("[Police] 메시지 수신: %.*s\n", size, dataPtr);
-
-                int inputId = -1;
-                bool valid = false;
-                while (!valid) {
-                    pc.printf("[Police] 확인할 ID 입력: ");
-                    while (!pc.readable());
-                    char ch = pc.getc();
-                    pc.printf("%c", ch);
-
-                    if (ch >= '0' && ch <= '9') {
-                        inputId = ch - '0';
-                        valid = true;
+                    if (policeId == -1) {
+                        pc.printf("👮‍♂️ [HOST] 살아있는 경찰 없음. 3초 후 DAY로 전환\n");
+                        change_state = 1; // 대기 상태로
                     } else {
-                        pc.printf("\n❗ 숫자만 입력하세요.");
+                        char msg[100] = "정체를 확인할 ID를 입력하세요:";
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].isAlive && players[i].id != policeId) {
+                                char buf[5];
+                                sprintf(buf, " %d", players[i].id);
+                                strcat(msg, buf);
+                            }
+                        }
+
+                        L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
+                        pc.printf("[HOST] %d번 경찰에게 정체 확인 요청 전송\n", policeId);
+                        change_state = 2; // 경찰 응답 대기
                     }
                 }
+                else if (change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    // 경찰 응답 처리
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    int targetId = atoi((char*)dataPtr);
+                    pc.printf("[HOST] 경찰이 %d번을 선택했습니다.\n", targetId);
 
-                char reply[4];
-                sprintf(reply, "%d", inputId);
-                L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
-                pc.printf("[Police] Host에 정체 확인 요청 전송 완료\n");
+                    const char* roleStr = "Unknown";
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].id == targetId) {
+                            roleStr = getRoleName(players[i].role);
+                            break;
+                        }
+                    }
 
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 1;
-            }
+                    L3_LLI_dataReqFunc((uint8_t*)roleStr, strlen(roleStr), policeId);
+                    pc.printf("[HOST] %d번의 정체 '%s'를 %d번 경찰에게 전송 완료\n", targetId, roleStr, policeId);
 
-            // 4. Guest: 경찰이 정체 응답 수신 → 바로 DAY로 전환
-            if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
-                L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 1)
-            {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-                pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    change_state = 1; // 대기 상태로
+                }
                 
-                // 경찰 업무 완료 - 바로 DAY로 전환
-                pc.printf("🌤️ [경찰] POLICE 단계 종료 → DAY로 전환\n");
-                main_state = DAY;
-                change_state = 0;
+                // Host 대기 후 DAY 전환 (경찰 없거나 업무 완료 후)
+                if (change_state == 1) {
+                    static int hostWaitCounter = 0;
+                    hostWaitCounter++;
+                    
+                    if (hostWaitCounter > 3000) { // 3초 대기
+                        pc.printf("🌤️ [HOST] POLICE 단계 종료 → DAY로 전환\n");
+                        main_state = DAY;
+                        change_state = 0;
+                        hostWaitCounter = 0;
+                        sentToPolice = false;
+                        policeId = -1;
+                    }
+                }
             }
+            // 경찰
+            else if (strcmp(myRoleName, "Police") == 0 && !idead) {
+                if (change_state == 0 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+                    pc.printf("[Police] 메시지 수신: %.*s\n", size, dataPtr);
 
-            // 5. Guest: 마피아, 시민 등 다른 역할들 - 일정 시간 후 자동으로 DAY로 전환
-            if (myId != 1 && strcmp(myRoleName, "Police") != 0) {
-                static int waitCounter = 0;
-                waitCounter++;
+                    int inputId = -1;
+                    bool valid = false;
+                    while (!valid) {
+                        pc.printf("[Police] 확인할 ID 입력: ");
+                        while (!pc.readable());
+                        char ch = pc.getc();
+                        pc.printf("%c", ch);
+
+                        if (ch >= '0' && ch <= '9') {
+                            inputId = ch - '0';
+                            valid = true;
+                        } else {
+                            pc.printf("\n❗ 숫자만 입력하세요.");
+                        }
+                    }
+
+                    char reply[4];
+                    sprintf(reply, "%d", inputId);
+                    L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
+                    pc.printf("[Police] Host에 정체 확인 요청 전송 완료\n");
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    change_state = 1; // 정체 응답 대기
+                }
+                else if (change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+                    pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    change_state = 2; // 대기 상태로
+                }
                 
-                // 약 5초 후 자동 전환 (FSM이 빠르게 돌기 때문에 큰 수)
-                if (waitCounter > 5000) {
-                    pc.printf("🌤️ [%s] POLICE 단계 대기 완료 → DAY로 전환\n", myRoleName);
+                // 경찰 대기 후 DAY 전환
+                if (change_state == 2) {
+                    static int policeWaitCounter = 0;
+                    policeWaitCounter++;
+                    
+                    if (policeWaitCounter > 2000) { // 2초 대기
+                        pc.printf("🌤️ [경찰] POLICE 단계 종료 → DAY로 전환\n");
+                        main_state = DAY;
+                        change_state = 0;
+                        policeWaitCounter = 0;
+                    }
+                }
+            }
+            // 마피아
+            else if (strcmp(myRoleName, "Mafia") == 0) {
+                static int mafiaWaitCounter = 0;
+                mafiaWaitCounter++;
+                
+                if (mafiaWaitCounter > 5000) { // 5초 대기
+                    pc.printf("🌤️ [마피아] POLICE 단계 대기 완료 → DAY로 전환\n");
                     main_state = DAY;
                     change_state = 0;
-                    waitCounter = 0; // 다음을 위해 초기화
+                    mafiaWaitCounter = 0;
+                }
+            }
+            // 의사
+            else if (strcmp(myRoleName, "Doctor") == 0) {
+                static int doctorWaitCounter = 0;
+                doctorWaitCounter++;
+                
+                if (doctorWaitCounter > 5000) { // 5초 대기
+                    pc.printf("🌤️ [의사] POLICE 단계 대기 완료 → DAY로 전환\n");
+                    main_state = DAY;
+                    change_state = 0;
+                    doctorWaitCounter = 0;
+                }
+            }
+            // 시민
+            else if (strcmp(myRoleName, "Citizen") == 0) {
+                static int citizenWaitCounter = 0;
+                citizenWaitCounter++;
+                
+                if (citizenWaitCounter > 5000) { // 5초 대기
+                    pc.printf("🌤️ [시민] POLICE 단계 대기 완료 → DAY로 전환\n");
+                    main_state = DAY;
+                    change_state = 0;
+                    citizenWaitCounter = 0;
+                }
+            }
+            // 죽은 플레이어
+            else if (idead) {
+                static int deadWaitCounter = 0;
+                deadWaitCounter++;
+                
+                if (deadWaitCounter > 3000) { // 3초 대기
+                    pc.printf("🌤️ [죽은 플레이어] POLICE 단계 대기 완료 → DAY로 전환\n");
+                    main_state = DAY;
+                    change_state = 0;
+                    deadWaitCounter = 0;
                 }
             }
 
