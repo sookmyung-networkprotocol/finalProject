@@ -7,7 +7,7 @@
 void L3_handleDay()
 {
     static char inputBuffer[256] = {0};
-    static int inputLen = 0;
+    static size_t inputLen = 0;
     static bool printedNotice = false;
 
     pc.printf("[DEBUG] L3_handleDay() 진입\n");
