@@ -15,7 +15,19 @@ void L3_handleDay()
         return;
     }
 
-    // 키보드 입력 수신
+    // [HOST] - 채팅은 안 하고, 'v' 입력만 처리
+    if (myId == 1) {
+        if (pc.readable()) {
+            char ch = pc.getc();
+            if (ch == 'v' || ch == 'V') {
+                pc.printf("\n[HOST] VOTE 단계로 넘어갑니다.\n");
+                main_state = VOTE;
+            }
+        }
+        return;  // HOST는 여기서 끝
+    }
+
+    // [PLAYER] - 그룹 채팅 처리
     if (pc.readable()) {
         char ch = pc.getc();
 
@@ -33,10 +45,10 @@ void L3_handleDay()
         }
     }
 
-    // 메시지 송신 처리
+    // 메시지 전송
     if (L3_event_checkEventFlag(L3_event_dataToSend)) {
         for (int i = 0; i < NUM_PLAYERS; i++) {
-            if (players[i].isAlive && players[i].id != myId) {
+            if (players[i].isAlive && players[i].id != myId && players[i].id != 1) {
                 L3_LLI_dataReqFunc(originalWord, wordLen, players[i].id);
             }
         }
@@ -45,7 +57,7 @@ void L3_handleDay()
         L3_event_clearEventFlag(L3_event_dataToSend);
     }
 
-    // 메시지 수신 처리
+    // 메시지 수신
     if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
         uint8_t* msg = L3_LLI_getMsgPtr();
         uint8_t from = L3_LLI_getSrcId();
