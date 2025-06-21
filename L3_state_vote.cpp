@@ -1,124 +1,119 @@
+// L3_state_vote.cpp
 #include "L3_shared.h"
 #include "L3_FSMevent.h"
 #include "L3_LLinterface.h"
-#include "mbed.h"
-#include <map>
+#include <cstring>
+#include <cstdlib>
+
+static int voteCounts[NUM_PLAYERS] = {0};
+static bool printedOnce = false;
+static int totalVotesReceived = 0;
 
 void L3_handleVote()
 {
-    static bool printed = false;
-    static bool voted = false;
-    static std::map<uint8_t, int> voteCounts;  // ID별 투표 수 집계
-    static int receivedVotes = 0;
-
-    // [0] 게스트가 vote start 신호 'S'를 수신한 경우 상태 전이 (예비 안전용)
-    if (myId != 1 && main_state != VOTE && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-        uint8_t* msg = L3_LLI_getMsgPtr();
-        uint8_t size = L3_LLI_getSize();
-
-        if (size == 1 && msg[0] == 'S') {
-            pc.printf("[DEBUG] 투표 시작 신호 수신 → VOTE 상태로 전이\n");
-            main_state = VOTE;
-        }
-
-        L3_event_clearEventFlag(L3_event_msgRcvd);
-    }
-
-    // [1] 안내 메시지 출력 (1회)
-    if (!printed) {
+    if (!printedOnce) {
         pc.printf("\n[VOTE] 투표를 시작합니다.\n");
-
-        if (myId != 1 && !idead) {
-            pc.printf("[VOTE] 현재 생존자 ID 목록: ");
+        if (myId != 1) {
+            // Guest: 생존자 리스트 출력
+            pc.printf("[VOTE] 현재 생존자 ID 목록:\n");
             for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].isAlive && players[i].id != 1) {
-                    pc.printf("%d ", players[i].id);
+                if (players[i].isAlive) {
+                    pc.printf(" - ID %d\n", players[i].id);
                 }
             }
-            pc.printf("\n[VOTE] 처형할 플레이어의 ID를 입력하세요: ");
+            pc.printf("[VOTE] 처형할 플레이어의 ID를 입력하세요: ");
+        } else {
+            // HOST: guest들에게 투표 시작 신호 전송
+            uint8_t signal[] = {'S'};
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].id != myId && players[i].isAlive) {
+                    L3_LLI_dataReqFunc(signal, 1, players[i].id);
+                }
+            }
         }
-
-        printed = true;
+        printedOnce = true;
     }
 
-    // [2] 게스트의 투표 입력
-    if (myId != 1 && !idead && !voted) {
-        if (pc.readable()) {
-            char input = pc.getc();
-            pc.putc(input);
+    // Guest의 투표 입력 처리
+    if (myId != 1 && pc.readable()) {
+        char c = pc.getc();
+        if (c >= '0' && c <= '9') {
+            int votedId = c - '0';
+            bool valid = false;
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].id == votedId && players[i].isAlive) {
+                    valid = true;
+                    break;
+                }
+            }
+            if (valid) {
+                pc.printf("[VOTE] ID %d에게 투표했습니다.\n", votedId);
+                char msg[8];
+                snprintf(msg, sizeof(msg), "VOTE:%d", votedId);
+                L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), 1);
+                printedOnce = false;
+                main_state = WAIT;  // GUEST는 기다리기 상태로 전환 (호스트가 결과 전송할 때까지)
+            } else {
+                pc.printf("[VOTE] 유효하지 않은 ID입니다. 생존자에게만 투표하세요.\n");
+            }
+        } else {
+            pc.printf("[VOTE] 숫자 ID만 입력 가능합니다.\n");
+        }
+    }
 
-            if (input >= '0' && input <= '9') {
-                uint8_t targetId = input - '0';
-                bool valid = false;
+    // HOST가 투표 수신 및 집계
+    if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+        uint8_t* msg = L3_LLI_getMsgPtr();
+        uint8_t len = L3_LLI_getSize();
+
+        if (strncmp((char*)msg, "VOTE:", 5) == 0 && myId == 1) {
+            int targetId = atoi((char*)msg + 5);
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].id == targetId) {
+                    voteCounts[i]++;
+                    totalVotesReceived++;
+                    pc.printf("[HOST] %d번에게 투표 1표 누적\n", targetId);
+                }
+            }
+
+            // 모든 생존자로부터 투표 받으면 결과 처리
+            int aliveCount = 0;
+            for (int i = 0; i < NUM_PLAYERS; i++) {
+                if (players[i].isAlive && players[i].id != myId) aliveCount++;
+            }
+
+            if (totalVotesReceived >= aliveCount) {
+                int maxVote = -1;
+                int maxIndex = -1;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == targetId && players[i].isAlive && players[i].id != 1) {
-                        valid = true;
-                        break;
+                    if (voteCounts[i] > maxVote) {
+                        maxVote = voteCounts[i];
+                        maxIndex = i;
                     }
                 }
 
-                if (valid) {
-                    uint8_t voteMsg[2] = {'V', targetId};
-                    L3_LLI_dataReqFunc(voteMsg, 2, 1);  // Host에게 전송
-                    pc.printf(" → %d번에게 투표 전송 완료\n", targetId);
-                    voted = true;
-                } else {
-                    pc.printf("\n[VOTE] 유효하지 않은 ID입니다. 생존자에게만 투표하세요.\n");
+                if (maxIndex != -1) {
+                    int eliminatedId = players[maxIndex].id;
+                    players[maxIndex].isAlive = false;
+                    pc.printf("[HOST] %d번 플레이어가 처형되었습니다.\n", eliminatedId);
+
+                    // 모두에게 결과 전송
+                    char result[16];
+                    snprintf(result, sizeof(result), "DEAD:%d", eliminatedId);
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        if (players[i].id != myId && players[i].isAlive) {
+                            L3_LLI_dataReqFunc((uint8_t*)result, strlen(result), players[i].id);
+                        }
+                    }
                 }
-            } else {
-                pc.printf("\n[VOTE] 숫자 ID만 입력 가능합니다.\n");
+
+                // 다음 상태 전이
+                printedOnce = false;
+                totalVotesReceived = 0;
+                memset(voteCounts, 0, sizeof(voteCounts));
+                main_state = NIGHT;
             }
-        }
-    }
-
-    // [3] Host가 수신된 투표 메시지 처리
-    if (myId == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-        uint8_t* msg = L3_LLI_getMsgPtr();
-        uint8_t size = L3_LLI_getSize();
-
-        if (size == 2 && msg[0] == 'V') {
-            uint8_t votedId = msg[1];
-            voteCounts[votedId]++;
-            receivedVotes++;
-            pc.printf("[VOTE] 플레이어의 투표 수신 → ID %d (총 %d표)\n", votedId, voteCounts[votedId]);
         }
         L3_event_clearEventFlag(L3_event_msgRcvd);
-    }
-
-    // [4] 모든 생존자로부터 투표 수신 완료 시 처리
-    if (myId == 1) {
-        int alivePlayers = 0;
-        for (int i = 0; i < NUM_PLAYERS; i++) {
-            if (players[i].isAlive && players[i].id != 1)
-                alivePlayers++;
-        }
-
-        if (receivedVotes >= alivePlayers && alivePlayers > 0) {
-            // 최대 득표자 계산
-            uint8_t maxId = 0;
-            int maxVotes = 0;
-            for (std::map<uint8_t, int>::iterator it = voteCounts.begin(); it != voteCounts.end(); ++it) {
-                if (it->second > maxVotes) {
-                    maxVotes = it->second;
-                    maxId = it->first;
-                }
-            }
-
-            // 결과 출력 및 반영
-            pc.printf("\n[VOTE] 최다 득표자: %d (%d표)\n", maxId, maxVotes);
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].id == maxId) {
-                    players[i].isAlive = false;
-                    if (myId == maxId) idead = true;
-                }
-            }
-
-            // 초기화 및 상태 전이
-            printed = false;
-            voted = false;
-            voteCounts.clear();
-            receivedVotes = 0;
-            main_state = NIGHT;
-        }
     }
 }

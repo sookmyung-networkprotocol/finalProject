@@ -23,8 +23,9 @@ typedef enum {
     POLICE,
     MODE_2,
     OVER,
-    TYPING
-} L3State;
+    TYPING,
+    WAIT }
+ L3State;
 
 // -------------------- PLAYER STRUCT --------------------
 #define NUM_PLAYERS 4
