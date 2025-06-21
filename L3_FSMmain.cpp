@@ -43,6 +43,7 @@ static Serial pc(USBTX, USBRX);
 static uint8_t myId;
 static uint8_t myDestId;
 
+/*
 //application event handler : generating SDU from keyboard input
 static void L3service_processInputWord(void)
 {
@@ -67,7 +68,7 @@ static void L3service_processInputWord(void)
         }
     }
 }
-
+*/
 
 
 void L3_initFSM(uint8_t Id, uint8_t destId)
@@ -97,6 +98,7 @@ void L3_FSMrun(void)
             // 임시 시작점 : 바로 match 시작
             if (change_state == 0)
                 main_state = MATCH;
+            
              // 연결 기기 변경 및 FSM 초기화 : 호스트, 게스트 모두 해당
             else if (change_state == 1)
             {
@@ -116,6 +118,7 @@ void L3_FSMrun(void)
                 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
             }
+            /*
             else if (L3_event_checkEventFlag(L3_event_dataToSend)) //if data needs to be sent (keyboard input)
             {
                 //msg header setting
@@ -128,6 +131,7 @@ void L3_FSMrun(void)
 
                 L3_event_clearEventFlag(L3_event_dataToSend);
             }
+            */
             break;
 
         }
