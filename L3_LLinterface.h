@@ -8,3 +8,4 @@ void L3_LLI_setDataReqFunc(void (*funcPtr)(uint8_t*, uint8_t, uint8_t));
 void L3_LLI_setReconfigSrcIdReqFunc(void (*funcPtr)(uint8_t));
 void L3_LLI_dataCnf(uint8_t res);
 void L3_LLI_reconfigSrcIdCnf(uint8_t res);
+void L3_sendRaw(uint8_t* payload, uint8_t length, uint8_t destId);
