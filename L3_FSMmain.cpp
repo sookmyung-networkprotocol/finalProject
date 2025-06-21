@@ -272,11 +272,19 @@ void L3_FSMrun(void)
                     if (c == 'v') {
                         pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\n");
                         
+                        // 모든 살아있는 플레이어에게 투표 시작 신호 전송
+                        const char voteStartMsg[] = "VOTE_START";
+                        for (int i = 0; i < NUM_PLAYERS; i++) {
+                            if (players[i].isAlive && players[i].id != 1) {
+                                L3_LLI_dataReqFunc((uint8_t*)voteStartMsg, strlen(voteStartMsg), players[i].id);
+                            }
+                        }
+                        
                         // 즉시 상태 변경
                         printedOnce = false;
                         change_state = 0;
                         main_state = VOTE;
-                        return; // 함수 즉시 종료하여 다른 처리 방지
+                        break; // switch문에서 빠져나가기
                     }
                 }
                 
@@ -299,15 +307,18 @@ void L3_FSMrun(void)
                         change_state = 0;
                         main_state = VOTE;
                         L3_event_clearEventFlag(L3_event_msgRcvd);
-                        return; // 즉시 상태 변경
-                    } else {
+                        break; // switch문에서 빠져나가기
+                    } 
+                    // [Player X] 형태의 채팅 메시지만 출력
+                    else if (msg[0] == '[' && strstr((char*)msg, "Player") != NULL) {
                         // 다른 플레이어의 채팅 메시지 출력
                         pc.printf("\r\n%.*s\n", size, msg);
                         if (!idead) {
                             pc.printf("💬 > ");
                         }
-                        L3_event_clearEventFlag(L3_event_msgRcvd);
                     }
+                    
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
                 
                 // 살아있는 플레이어만 입력 가능
