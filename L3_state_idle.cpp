@@ -77,8 +77,8 @@ void L3_handleMode1() {
 
             L3_event_clearEventFlag(L3_event_msgRcvd);
         }
-
-        // Host가 '1' 입력 시 다음으로 넘어감
+        
+        // Host 입력 처리
         if (waitingHostInput) {
             if (pc.readable()) {
                 char c = pc.getc();
@@ -105,6 +105,7 @@ void L3_handleMode1() {
                 }
             }
         }
+    }
 
     // Guest 플레이어 처리
     if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
