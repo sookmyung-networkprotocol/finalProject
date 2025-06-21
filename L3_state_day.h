@@ -1,4 +1,5 @@
+// L3_state_day.h
 #pragma once
 
-// DAY 상태 처리 함수
+// 낮 상태 채팅 핸들러
 void L3_handleDay();

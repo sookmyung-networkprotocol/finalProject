@@ -65,6 +65,8 @@ OBJECTS += L3_state_day.o
 OBJECTS += L3_state_idle.o
 OBJECTS += L3_state_night.o
 OBJECTS += L3_state_vote.o
+OBJECTS += L3_state_over.o
+
 
  SYS_OBJECTS += lib/Rx_HAL.o
  SYS_OBJECTS += lib/Rx_HHI.o

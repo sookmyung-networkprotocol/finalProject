@@ -20,15 +20,13 @@ typedef struct {
     int8_t sentVoteId;  // 내가 투표한 대상 ID
 } Player;
 
-// 플레이어 수
 #define NUM_PLAYERS 4
 #define NUM_ROLES 4
 
-// 외부 전역 변수 참조
+// 전역 플레이어 배열 참조
 extern Player players[NUM_PLAYERS];
 
-// 초기화 함수
-typedef enum L3State L3State; // Forward declaration
+// 함수 선언
 void initPlayer(Player* p, uint8_t id, Role role);
 void createPlayers();
 const char* getRoleName(Role r);

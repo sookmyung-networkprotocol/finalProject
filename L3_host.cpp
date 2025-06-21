@@ -4,8 +4,8 @@
 
 #include "L3_host.h"
 
-
-Player players[NUM_PLAYERS];
+// NOTE: 'players' 정의를 L3_shared.cpp로 이동했으므로, 여기서는 선언만 함
+extern Player players[NUM_PLAYERS];
 static uint8_t playerIds[NUM_PLAYERS] = {2, 3, 7, 8};
 
 // 플레이어 초기화 함수
