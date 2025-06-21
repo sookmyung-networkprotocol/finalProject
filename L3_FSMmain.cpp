@@ -735,7 +735,7 @@ void L3_FSMrun(void)
                 }
             }
 
-            // 2. Host: 경찰 응답 처리 → 정체 전송 → 바로 DAY로 전환
+            // 2. Host: 경찰 응답 처리 → 정체 전송 → 모든 플레이어에게 DAY 신호 전송
             if (myId == 1 && change_state == 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 int targetId = atoi((char*)dataPtr);
@@ -754,8 +754,17 @@ void L3_FSMrun(void)
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
                 
-                // 경찰 업무 완료 - 바로 DAY로 전환
-                pc.printf("🌤️ POLICE 단계 종료 → DAY로 전환\n");
+                // 모든 살아있는 플레이어에게 DAY 전환 신호 전송 (브로드캐스트 방식)
+                const char daySignal[] = "DAY_START";
+                for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].isAlive) {
+                        L3_LLI_dataReqFunc((uint8_t*)daySignal, strlen(daySignal), players[i].id);
+                        pc.printf("[HOST] %d번 플레이어에게 DAY 전환 신호 전송\n", players[i].id);
+                    }
+                }
+                
+                // Host도 DAY로 전환
+                pc.printf("🌤️ [HOST] POLICE 단계 종료 → DAY로 전환\n");
                 main_state = DAY;
                 change_state = 0;
                 
@@ -770,6 +779,16 @@ void L3_FSMrun(void)
             {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
+                
+                // DAY 전환 신호인지 확인
+                if (strncmp((char*)dataPtr, "DAY_START", 9) == 0) {
+                    pc.printf("🌤️ [경찰] DAY 전환 신호 수신 → DAY로 전환\n");
+                    main_state = DAY;
+                    change_state = 0;
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    return; // 다른 처리 건너뛰기
+                }
+                
                 pc.printf("[Police] 메시지 수신: %.*s\n", size, dataPtr);
 
                 int inputId = -1;
@@ -797,39 +816,43 @@ void L3_FSMrun(void)
                 change_state = 1;
             }
 
-            // 4. Guest: 경찰이 정체 응답 수신 → 바로 DAY로 전환
+            // 4. Guest: 경찰이 정체 응답 수신
             if (myId != 1 && strcmp(myRoleName, "Police") == 0 && !idead &&
                 L3_event_checkEventFlag(L3_event_msgRcvd) && change_state == 1)
             {
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
-                pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
                 
-                // 경찰 업무 완료 - 바로 DAY로 전환
-                pc.printf("🌤️ [경찰] POLICE 단계 종료 → DAY로 전환\n");
-                main_state = DAY;
-                change_state = 0;
-            }
-
-            // 5. Guest: 경찰이 아닌 플레이어들 - 일정 시간 후 자동으로 DAY로 전환
-            if (myId != 1 && strcmp(myRoleName, "Police") != 0) {
-                static int waitCounter = 0;
-                waitCounter++;
-                
-                // 충분히 기다렸으면 DAY로 전환 (약 3초 정도)
-                if (waitCounter > 3000) {  // 루프가 빠르게 돌기 때문에 큰 수
-                    pc.printf("🌤️ [%s] POLICE 단계 종료 → DAY로 전환\n", myRoleName);
+                // DAY 전환 신호인지 확인
+                if (strncmp((char*)dataPtr, "DAY_START", 9) == 0) {
+                    pc.printf("🌤️ [경찰] DAY 전환 신호 수신 → DAY로 전환\n");
                     main_state = DAY;
                     change_state = 0;
-                    waitCounter = 0;
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    return;
+                }
+                
+                pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
+                L3_event_clearEventFlag(L3_event_msgRcvd);
+                // 경찰은 정체 확인 완료 후 DAY 신호를 기다림
+            }
+
+            // 5. Guest: 모든 플레이어 - DAY 전환 신호 수신
+            if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
+                
+                // DAY 전환 신호인지 확인
+                if (size == 9 && strncmp((char*)dataPtr, "DAY_START", 9) == 0) {
+                    pc.printf("🌤️ [%s] DAY 전환 신호 수신 → DAY로 전환\n", myRoleName);
+                    main_state = DAY;
+                    change_state = 0;
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
             }
 
             break;
         }
-
         case DOCTOR:
         {
             static bool sentToDoctor = false;
