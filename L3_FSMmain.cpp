@@ -865,6 +865,14 @@ void L3_FSMrun(void)
             static bool sentToDoctor = false;
             static bool waitingAck = false;
             static int doctorId = -1;
+            static bool printedEntryLog = false;
+            static bool printedExitLog = false;
+
+            // DOCTOR 상태 진입 로그 (딱 1번)
+            if (!printedEntryLog) {
+                pc.printf("[DEBUG] (ID %d, ROLE: %s) → DOCTOR FSM 진입\n", myId, myRoleName);
+                printedEntryLog = true;
+            }
 
             // 1. Host: 살아있는 의사에게 메시지 전송
             if (myId == 1 && change_state == 0) {
@@ -878,10 +886,9 @@ void L3_FSMrun(void)
                 }
 
                 if (doctorId == -1) {
-                    pc.printf("👨‍⚕️ [HOST] 살아있는 의사 없음. 5초 후 DAY로 전환\n");
+                    pc.printf("👨‍⚕️ [HOST] 살아있는 의사 없음. 5초 후 POLICE로 전환\n");
                     change_state = 2; // 대기 상태로
                 } else {
-                    // 살아있는 플레이어 ID 목록 구성
                     char msg[100] = "살릴 사람의 ID를 입력하세요:";
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         if (players[i].isAlive && players[i].id != doctorId) {
@@ -904,7 +911,7 @@ void L3_FSMrun(void)
                 doctorTarget = atoi((char*)dataPtr);
                 pc.printf("🩺 의사가 %d번을 살리기로 선택했습니다.\n", doctorTarget);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2; // 대기 상태로
+                change_state = 2;
             }
 
             // 3. 게스트: 의사일 경우 메시지 수신 → ID 입력 → 전송
@@ -936,17 +943,16 @@ void L3_FSMrun(void)
                 L3_LLI_dataReqFunc((uint8_t*)reply, strlen(reply), 1);
                 pc.printf("[의사] %d번을 살리기로 선택하고 Host에 전송 완료\n", inputId);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2; // 대기 상태로
+                change_state = 2;
             }
 
-
-            // 5. 의사가 아닌 플레이어들: 대기 후 자동 처리
+            // 4. 대기 후 POLICE 단계로 전환
             if (change_state == 2) {
                 static int waitCounter = 0;
                 waitCounter++;
-                
-                if (waitCounter > 5000) { // 5초 대기
-                    // 밤에 마피아가 선택한 타겟 적용
+
+                if (waitCounter > 5000) { // 약간의 시간 대기 후 진행
+                    // 마피아의 살인 대상 적용
                     int mafiaTarget = -1;
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
@@ -955,7 +961,7 @@ void L3_FSMrun(void)
                         }
                     }
 
-                    // 의사 효과 반영: 마피아 타겟이 doctorTarget이면 무효, 아니면 죽음
+                    // 의사 효과 반영
                     if (mafiaTarget != -1) {
                         for (int i = 0; i < NUM_PLAYERS; i++) {
                             if (players[i].id == mafiaTarget &&
@@ -970,38 +976,41 @@ void L3_FSMrun(void)
                         }
                     }
 
-                    // 생존 상태 동기화 (각 플레이어가 자신의 상태 확인)
+                    // 자신이 죽었는지 확인
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         if (players[i].id == myId && !players[i].isAlive) {
                             idead = true;
                         }
                     }
 
-                    // sentVoteId, doctorTarget 초기화
+                    // 초기화
                     for (int i = 0; i < NUM_PLAYERS; i++) {
                         players[i].sentVoteId = -1;
                     }
                     doctorTarget = -1;
 
-                    if (myId == 1) {
-                        pc.printf("🌅 [HOST] DOCTOR 단계 완료 → POLICE로 전환\n");
-                    } else {
-                        pc.printf("🌅 [%s] DOCTOR 단계 완료 → POLICE로 전환\n", myRoleName);
+                    // POLICE 상태 전환 로그 (한 번만 출력)
+                    if (!printedExitLog) {
+                        pc.printf("🌅 (ID %d, ROLE: %s) DOCTOR 단계 완료 → POLICE로 전환\n", myId, myRoleName);
+                        printedExitLog = true;
                     }
-                    
+
                     main_state = POLICE;
                     change_state = 0;
                     waitCounter = 0;
-                    
-                    // 초기화
+
+                    // 재사용 변수 초기화
                     sentToDoctor = false;
                     waitingAck = false;
                     doctorId = -1;
+                    printedEntryLog = false;
+                    printedExitLog = false;
                 }
             }
 
             break;
         }
+
 
 
 
