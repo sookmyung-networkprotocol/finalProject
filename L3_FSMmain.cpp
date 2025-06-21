@@ -703,23 +703,29 @@ void L3_FSMrun(void)
 
         case POLICE:
         {
-            static bool sentToPolice = false;
             static bool waitingAck = false;
+            static bool waitingHostInput = false;
+            static int currentSendIndex = 0;
             static int policeId = -1;
+            static int aliveIDs[NUM_PLAYERS];
+            static int aliveCount = 0;
 
             // 1. Host: 살아있는 경찰에게 메시지 전송
             if (myId == 1 && change_state == 0) {
+                // 살아있는 플레이어 목록 구성
+                aliveCount = 0;
                 for (int i = 0; i < NUM_PLAYERS; i++) {
+                    if (players[i].isAlive) {
+                        aliveIDs[aliveCount++] = players[i].id;
+                    }
                     if (players[i].role == ROLE_POLICE && players[i].isAlive) {
                         policeId = players[i].id;
-                        break;
                     }
                 }
 
                 if (policeId == -1) {
-                    pc.printf("[HOST] 살아있는 경찰 없음. 다음 DAY로 이동\n");
-                    main_state = DAY;
-                    change_state = 0;
+                    pc.printf("[HOST] 살아있는 경찰 없음. DAY 메시지 전송으로 이동\n");
+                    change_state = 3; // DAY 메시지 전송 단계로 바로 이동
                 } else {
                     char msg[100] = "정체를 확인할 ID를 입력하세요:";
                     for (int i = 0; i < NUM_PLAYERS; i++) {
@@ -732,7 +738,6 @@ void L3_FSMrun(void)
 
                     L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), policeId);
                     pc.printf("[HOST] %d번 경찰에게 정체 확인 요청 전송\n", policeId);
-                    sentToPolice = true;
                     waitingAck = true;
                     change_state = 1;
                 }
@@ -756,7 +761,7 @@ void L3_FSMrun(void)
                 pc.printf("[HOST] %d번의 정체 '%s'를 %d번 경찰에게 전송 완료\n", targetId, roleStr, policeId);
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2;
+                change_state = 3; // DAY 메시지 전송 단계로 이동
             }
 
             // 3. Guest: 경찰이 ID 입력
@@ -801,14 +806,88 @@ void L3_FSMrun(void)
                 pc.printf("[Police] 수신된 정체: %.*s\n", size, dataPtr);
 
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-                change_state = 2;
+                change_state = 2; // 경찰은 대기 상태로
             }
 
-            // 5. 상태 전환
-            if (change_state == 2) {
-                pc.printf("🌤️ POLICE 단계 종료 → 다음 DAY로 이동\n");
+            // 5. Host: 모든 플레이어에게 DAY 메시지 전송
+            if (myId == 1 && change_state == 3) {
+                static char dayMsg[] = "🌅 낮이 되었습니다.";
+                
+                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
+                    int destId = aliveIDs[currentSendIndex];
+                    L3_LLI_dataReqFunc((uint8_t*)dayMsg, strlen(dayMsg), destId);
+                    pc.printf("[HOST] %d번 플레이어에게 DAY 메시지 전송\n", destId);
+                    waitingAck = true;
+                }
+
+                // ACK 수신 처리
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                    uint8_t size = L3_LLI_getSize();
+
+                    if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
+                        pc.printf("ACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
+                        waitingAck = false;
+                        waitingHostInput = true;
+                        pc.printf("다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
+                    }
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                }
+
+                // HOST 입력 처리
+                if (waitingHostInput && pc.readable()) {
+                    char c = pc.getc();
+                    if (c == '1') {
+                        currentSendIndex++;
+                        waitingHostInput = false;
+                        pc.printf("✅ 다음 플레이어로 이동합니다.\n");
+
+                        if (currentSendIndex >= aliveCount) {
+                            pc.printf("✅ 모든 플레이어에게 DAY 메시지 전송 완료!\n");
+                            // 초기화
+                            currentSendIndex = 0;
+                            waitingAck = false;
+                            waitingHostInput = false;
+                            change_state = 4; // 최종 상태 전환 단계
+                        }
+                    } else {
+                        pc.printf("❗ '1'을 입력해야 진행됩니다.\n");
+                    }
+                }
+            }
+
+            // 6. Guest: DAY 메시지 수신 및 ACK 전송
+            if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd) && change_state < 4) {
+                uint8_t* dataPtr = L3_LLI_getMsgPtr();
+                uint8_t size = L3_LLI_getSize();
+
+                // DAY 메시지인지 확인
+                if (strstr((char*)dataPtr, "낮이 되었습니다") != NULL) {
+                    pc.printf("[게스트 %d] DAY 메시지 수신: %.*s\n", myId, size, dataPtr);
+
+                    // ACK 전송
+                    const char ackMsg[] = "ACK";
+                    L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
+                    pc.printf("[게스트 %d] ACK 전송 완료\n", myId);
+
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
+                    change_state = 4; // Guest도 상태 전환 준비
+                }
+            }
+
+            // 7. 최종 상태 전환
+            if (change_state == 4) {
+                pc.printf("🌤️ POLICE 단계 종료 → DAY로 전환\n");
                 main_state = DAY;
                 change_state = 0;
+                
+                // 정적 변수들 초기화
+                waitingAck = false;
+                waitingHostInput = false;
+                currentSendIndex = 0;
+                policeId = -1;
+                aliveCount = 0;
             }
 
             break;
