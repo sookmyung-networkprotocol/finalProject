@@ -23,6 +23,10 @@ int doctorTarget = -1;
 #define NUM_PLAYERS 4
 static bool dead[NUM_PLAYERS] = { false };  // 전부 살아있다고 초기화
 
+#define MAX_PLAYERS 4
+static uint8_t knownPlayerIDs[MAX_PLAYERS];  // 알게 된 게스트들의 ID
+static int knownPlayerCount = 0;             // 그 수
+
 
 //state variables
 static uint8_t main_state = L3STATE_IDLE; //protocol state
@@ -165,7 +169,17 @@ void L3_FSMrun(void)
                 if (!waitingAck && !waitingHostInput && currentSendIndex < 4) {
                     myDestId = players[currentSendIndex].id;
 
-                    strcpy(msgStr, getRoleName(players[currentSendIndex].role));
+                    const char* roleStr = getRoleName(players[currentSendIndex].role);
+
+                    char idList[64] = "";
+                    for (int i = 0; i < NUM_PLAYERS; i++) {
+                        char temp[8];
+                        sprintf(temp, "%d", players[i].id);
+                        strcat(idList, temp);
+                        if (i != NUM_PLAYERS - 1) strcat(idList, ",");
+                    }
+
+                    sprintf(msgStr, "%s|%s", roleStr, idList);
                     
                     pc.printf("\r\nSEND ROLE to ID %d : %s\n\n", myDestId, msgStr);
                     
@@ -216,22 +230,34 @@ void L3_FSMrun(void)
                 uint8_t* dataPtr = L3_LLI_getMsgPtr();
                 uint8_t size = L3_LLI_getSize();
 
-                int len = size;
-                if (len > 15) len = 15;              // 최대 크기 제한
-                memcpy(myRoleName, dataPtr, len);    // 복사
-                myRoleName[len] = '\0';               // null 종료
+                // role|id1,id2,id3,id4 형태에서 파싱
+                char rolePart[16], idsPart[64];
+                sscanf((char*)dataPtr, "%[^|]|%s", rolePart, idsPart);
 
-                pc.printf("\r\n나의 역할 : %.*s (length:%d)\n\n", size, myRoleName, size);
+                strncpy(myRoleName, rolePart, sizeof(myRoleName));
+                myRoleName[sizeof(myRoleName) - 1] = '\0';
+
+                // ID 파싱
+                knownPlayerCount = 0;
+                char* token = strtok(idsPart, ",");
+                while (token && knownPlayerCount < MAX_PLAYERS) {
+                    knownPlayerIDs[knownPlayerCount++] = atoi(token);
+                    token = strtok(NULL, ",");
+                }
+
+                pc.printf("\n[게스트] 역할: %s\n", myRoleName);
+                pc.printf("[게스트] 플레이어 ID 목록: ");
+                for (int i = 0; i < knownPlayerCount; i++) {
+                    pc.printf("%d ", knownPlayerIDs[i]);
+                }
 
                 // ACK 전송
-                const char ackMsg[] = "ACK";
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
-
+                const char ack[] = "ACK";
+                L3_LLI_dataReqFunc((uint8_t*)ack, sizeof(ack) - 1, 1);
                 L3_event_clearEventFlag(L3_event_msgRcvd);
-
-                pc.printf("\r\n게임이 시작되었습니다.\n\n");
-                change_state = 2;  // 게스트도 상태 전환
+                change_state = 2;
             }
+
 
             // 조건부 상태 전환만 허용
             if (change_state == 2)
@@ -242,72 +268,75 @@ void L3_FSMrun(void)
 
         case DAY:
         {
-            static bool chatting = false;
-            static char inputBuffer[128];
-            static int inputIndex = 0;
-
-            // 낮 시작 시 초기 메시지 출력
-            if (!chatting) {
-                pc.printf("\n🌞 낮이 되었습니다. 단체 채팅을 시작합니다.\n");
-                pc.printf("💬 메시지를 입력하세요. (채팅 종료는 # 입력)\n");
-                chatting = true;
-                inputIndex = 0;
-                inputBuffer[0] = '\0';
+            static bool printedOnce = false;
+            if (!printedOnce) {
+                pc.printf("\r\n🌞 낮이 되었습니다. 그룹 채팅을 시작합니다.\n");
+                pc.printf("✏️ 메시지를 입력하고 Enter를 누르세요. (HOST는 'v'로 종료)\n");
+                printedOnce = true;
             }
 
-            // 게스트만 입력 가능 (Host는 참여 금지)
-            if (myId != 1 && pc.readable()) {
-                char c = pc.getc();
-
-                // 종료 신호: '#' 입력
-                if (c == '#') {
-                    pc.printf("\n🔕 채팅 종료. 투표로 넘어갑니다.\n");
-                    chatting = false;
-                    inputIndex = 0;
-                    change_state = 0;
-                    main_state = VOTE;
-                    break;
-                }
-
-                // 줄바꿈으로 메시지 완성
-                if (c == '\n' || c == '\r') {
-                    inputBuffer[inputIndex] = '\0';
-
-                    if (strlen(inputBuffer) > 0) {
-                        // [ID] 메시지 구성
-                        char msgToSend[150];
-                        sprintf(msgToSend, "[%d] %s", myId, inputBuffer);
-
-                        // 자신 포함, 살아있는 게스트들에게 전송
-                        for (int i = 0; i < NUM_PLAYERS; i++) {
-                            if (players[i].isAlive && players[i].id != 1) {
-                                L3_LLI_dataReqFunc((uint8_t*)msgToSend, strlen(msgToSend), players[i].id);
+            // 게스트 채팅 입력 처리
+            if (myId != 1) {
+                if (pc.readable()) {
+                    char c = pc.getc();
+                    if (!L3_event_checkEventFlag(L3_event_dataToSend)) {
+                        if (c == '\n' || c == '\r') {
+                            originalWord[wordLen++] = '\0';
+                            L3_event_setEventFlag(L3_event_dataToSend);
+                        } else {
+                            originalWord[wordLen++] = c;
+                            if (wordLen >= L3_MAXDATASIZE - 1) {
+                                originalWord[wordLen++] = '\0';
+                                L3_event_setEventFlag(L3_event_dataToSend);
                             }
                         }
-
-                        // 사용자에게 전송 확인 메시지
-                        pc.printf("\n📤 전송됨: %s\n", msgToSend);
                     }
-
-                    // 버퍼 초기화
-                    inputIndex = 0;
-                    inputBuffer[0] = '\0';
                 }
-                else if (inputIndex < sizeof(inputBuffer) - 1) {
-                    // 메시지 버퍼에 입력 추가
-                    inputBuffer[inputIndex++] = c;
-                    pc.putc(c);  // 입력 echo
+
+                if (L3_event_checkEventFlag(L3_event_dataToSend)) {
+                    pc.printf("\r\n🗨️ [나] %s\n", originalWord);
+                    for (int i = 0; i < knownPlayerCount; i++) {
+                        L3_LLI_dataReqFunc(originalWord, wordLen, knownPlayerIDs[i]);
+                    }
+                    wordLen = 0;
+                    L3_event_clearEventFlag(L3_event_dataToSend);
+                }
+
+                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
+                    uint8_t* msg = L3_LLI_getMsgPtr();
+                    int fromId = L3_LLI_getSrcId();
+
+                    pc.printf("\r\n📨 [Player %d] %s\n", fromId, msg);
+                    L3_event_clearEventFlag(L3_event_msgRcvd);
                 }
             }
 
-            // 수신 메시지 처리 (게스트만)
+            // HOST가 'v' 입력 시 전체 게스트에게 "투표 시작" 메시지 전송
+            if (myId == 1 && pc.readable()) {
+                char c = pc.getc();
+                if (c == 'v' || c == 'V') {
+                    pc.printf("\r\n📣 HOST가 채팅을 종료합니다. 투표 시작!\n");
+
+                    const char voteSignal[] = "MSG_TYPE_MODE: VOTE";
+                    for (int i = 0; i < knownPlayerCount; i++) {
+                        L3_LLI_dataReqFunc((uint8_t*)voteSignal, strlen(voteSignal), knownPlayerIDs[i]);
+                    }
+
+                    printedOnce = false;
+                    change_state = 0;
+                    main_state = VOTE;
+                }
+            }
+
+            // 게스트가 HOST로부터 투표 메시지 수신
             if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
                 uint8_t* msg = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-
-                // 수신 메시지 출력
-                pc.printf("\n📨 채팅 수신: %.*s\n", size, msg);
-
+                if (strncmp((char*)msg, "MSG_TYPE_MODE: VOTE", 20) == 0) {
+                    pc.printf("\r\n🗳️ 투표로 이동합니다!\n");
+                    printedOnce = false;
+                    change_state = 0;
+                    main_state = VOTE;
+                }
                 L3_event_clearEventFlag(L3_event_msgRcvd);
             }
 
