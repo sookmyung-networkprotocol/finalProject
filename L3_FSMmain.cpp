@@ -83,7 +83,11 @@ void L3_FSMrun() {
         case TYPING:           break;
     }
 
-    if (main_state == DAY && prev_state == POLICE) {
-        L3_finalizeNight();
+    if (main_state == DAY) {
+    if (prev_state == POLICE) {
+        L3_finalizeNight();  // 밤 → 낮으로 넘어올 때만 실행
+        }
+    L3_handleDay();  // ✅ 낮 FSM은 항상 실행
     }
+
 }
