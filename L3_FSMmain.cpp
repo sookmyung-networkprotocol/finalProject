@@ -1164,7 +1164,7 @@ void L3_FSMrun(void)
             if (mafiaWaitCounter > 2000) { // 2초 대기
                 pc.printf("💤 [마피아] MAFIA 단계 종료 → DOCTOR 단계로 전환\n");
                 main_state = DOCTOR;
-                change_state = 0;
+                change_state = 2;
                 mafiaWaitCounter = 0;
             }
         }
@@ -1177,7 +1177,7 @@ void L3_FSMrun(void)
             if (otherWaitCounter > 3000) { // 3초 대기
                 pc.printf("💤 [%s] MAFIA 단계 대기 완료 → DOCTOR 단계로 전환\n", myRoleName);
                 main_state = DOCTOR;
-                change_state = 0;
+                change_state = 2;
                 otherWaitCounter = 0;
             }
         }
