@@ -20,8 +20,16 @@ void L3_initFSM(uint8_t id, uint8_t destId) {
     printf("[L3] FSM initialized. MyID: %d, DestID: %d\n", myId, myDestId);
 }
 
-void L3service_processInputWord() {
+void L3service_processInputWord(void)
+{
+    static bool printedInputLog = false;
     char c = pc.getc();
+
+    if (!printedInputLog) {
+        pc.printf("[DEBUG] L3service_processInputWord 작동 시작 (첫 문자='%c')\n", c);
+        printedInputLog = true;
+    }
+
     if (!L3_event_checkEventFlag(L3_event_dataToSend)) {
         if (c == '\n' || c == '\r') {
             originalWord[wordLen++] = '\0';
@@ -29,10 +37,12 @@ void L3service_processInputWord() {
             L3_event_setEventFlag(L3_event_dataToSend);
             wordLen = 0;
         } else {
-            originalWord[wordLen++] = c;
+            if (wordLen < sizeof(originalWord) - 1)
+                originalWord[wordLen++] = c;
         }
     }
 }
+
 
 // NIGHT 단계 종료 시 결과 반영
 void L3_finalizeNight() {
@@ -73,13 +83,17 @@ void L3_FSMrun() {
         case L3STATE_IDLE:     L3_handleIdle(); break;
         case MATCH:            L3_handleMatch(); break;
         case MODE_1:           L3_handleMode1(); break;
-        case DAY:
-            pc.printf("[DEBUG] case DAY 진입됨 (prev_state=%d)\n", prev_state);
+        case DAY: {
+            static int count = 0;
+            if (count++ < 1)
+                pc.printf("[DEBUG] case DAY 진입\n");
+
             if (prev_state == POLICE) {
-                L3_finalizeNight();  // 조건부 처리
+                L3_finalizeNight();
             }
-            L3_handleDay();  // ✅ 반드시 항상 호출되어야 함
+            L3_handleDay();
             break;
+        }
         case VOTE:             L3_handleVote(); break;
         case NIGHT:            L3_handleMafia(); break;
         case DOCTOR:           L3_handleDoctor(); break;
