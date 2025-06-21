@@ -308,7 +308,7 @@ C_FLAGS += -mfloat-abi=softfp
 C_FLAGS += -DMBED_ROM_START=0x8000000
 C_FLAGS += -DMBED_ROM_SIZE=0x80000
 
-CXX_FLAGS += -std=gnu++98
+CXX_FLAGS += -std=gnu++11
 CXX_FLAGS += -fno-rtti
 CXX_FLAGS += -Wvla
 CXX_FLAGS += -include
@@ -366,7 +366,7 @@ CXX_FLAGS += -DDEVICE_PORTIN=1
 CXX_FLAGS += -DARM_MATH_CM4
 CXX_FLAGS += -include
 CXX_FLAGS += mbed_config.h
-CXX_FLAGS += -std=gnu++98
+CXX_FLAGS += -std=gnu++11
 CXX_FLAGS += -fno-rtti
 CXX_FLAGS += -Wvla
 CXX_FLAGS += -c
