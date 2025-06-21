@@ -296,7 +296,9 @@ void L3_FSMrun(void)
                 if (L3_event_checkEventFlag(L3_event_dataToSend)) {
                     pc.printf("\r\n🗨️ [나] %s\n", originalWord);
                     for (int i = 0; i < knownPlayerCount; i++) {
-                        L3_LLI_dataReqFunc(originalWord, wordLen, knownPlayerIDs[i]);
+                        if (knownPlayerIDs[i] != myId) {  // 자기 자신 제외
+                            L3_LLI_dataReqFunc(originalWord, wordLen, knownPlayerIDs[i]);
+                        }
                     }
                     wordLen = 0;
                     L3_event_clearEventFlag(L3_event_dataToSend);
@@ -525,7 +527,7 @@ void L3_FSMrun(void)
                 char ackMsg[4];
                 sprintf(ackMsg, "%d", voteTo);
                 L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-                L3_event_clearEventFlag(L3_event_msgRcvd);
+
 
                 change_state = 2;
             }
