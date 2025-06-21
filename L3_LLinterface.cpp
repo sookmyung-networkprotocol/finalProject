@@ -65,3 +65,4 @@ void L3_LLI_setReconfigSrcIdReqFunc(void (*funcPtr)(uint8_t))
 {
     L3_LLI_reconfigSrcIdReqFunc = funcPtr;
 }
+

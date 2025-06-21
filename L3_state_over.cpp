@@ -1,62 +1,58 @@
-// L3_state_over.cpp
 #include "L3_state_over.h"
 #include "L3_shared.h"
 #include "L3_LLinterface.h"
 #include "L3_FSMevent.h"
-#include <cstdio>
+#include "L2_msg.h"
+#include "L3_host.h"
 #include <cstring>
-
-static int ackCount = 0;
-static bool sentToAll = false;
+#include <cstdio>
 
 void L3_handleMode2() {
-    if (!sentToAll) {
-        pc.printf("[MODE2] 게임 종료 메시지를 모든 생존자에게 전송합니다.\n");
+    static bool allSent = false;
+
+    if (!allSent) {
+        printf("[HOST] Sending MODE:OVER to all players...\n");
+
         for (int i = 0; i < NUM_PLAYERS; i++) {
             if (players[i].id != myId && players[i].isAlive) {
-                const char* msg = "MODE:OVER";
-                L3_LLI_dataReqFunc((uint8_t*)msg, strlen(msg), players[i].id);
+                L3_LLI_dataReqFunc((uint8_t*)"MODE:OVER", strlen("MODE:OVER"), players[i].id);
             }
         }
-        sentToAll = true;
+
+        allSent = true;
     }
 
     if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-        uint8_t* dataPtr = L3_LLI_getMsgPtr();
-        uint8_t fromId = L3_LLI_getSrcId();
-
-        if (strncmp((char*)dataPtr, "ACK", 3) == 0) {
-            pc.printf("[MODE2] %d번 플레이어로부터 ACK 수신\n", fromId);
-            ackCount++;
+        uint8_t* msg = L3_LLI_getMsgPtr();
+        if (L2_msg_checkIfAck(msg)) {
+            printf("[HOST] ACK received from player.\n");
         }
-
         L3_event_clearEventFlag(L3_event_msgRcvd);
     }
 
-    if (ackCount >= NUM_PLAYERS - 1) {
-        pc.printf("[MODE2] 모든 ACK 수신 완료. OVER 상태로 전환합니다.\n");
-        main_state = OVER;
-        sentToAll = false;
-        ackCount = 0;
-    }
+    main_state = OVER;
 }
 
 void L3_handleOver() {
-    pc.printf("\n=========== GAME OVER ===========\n");
+    printf("\n===== GAME OVER =====\n");
 
     for (int i = 0; i < NUM_PLAYERS; i++) {
-        const char* status = players[i].isAlive ? "Alive" : "Dead";
-        pc.printf("Player ID: %d | Role: %s | Status: %s\n",
-                  players[i].id,
-                  getRoleName(players[i].role),
-                  status);
+        printf("Player %d (ID: %d) - Role: %s - Status: %s\n",
+               i, players[i].id,
+               getRoleName(players[i].role),
+               players[i].isAlive ? "Alive" : "Dead");
     }
 
-    pc.printf("\n게임이 종료되었습니다. 재시작하려면 아무 키나 누르세요...\n");
+    printf("======================\n\n");
 
-    // 사용자 입력 대기 후 재시작 처리
-    while (!pc.readable());
-    char dummy = pc.getc();
-    resetGameState();
-    main_state = MATCH;
+    if (myId == 1) {
+        printf("게임을 다시 시작하려면 y 를 입력하세요: ");
+
+        if (pc.readable()) {
+            char c = pc.getc();
+            if (c == 'y' || c == 'Y') {
+                resetGameState();  // 모든 FSM 상태와 변수 초기화
+            }
+        }
+    }
 }

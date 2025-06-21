@@ -4,7 +4,7 @@
 #include "L3_LLinterface.h"
 #include "L3_FSMevent.h"
 #include "L2_FSMmain.h"
-#include "L3_host.h"  // host 함수 포함
+#include "L3_host.h"
 #include <cstring>
 #include <cstdio>
 
@@ -49,6 +49,7 @@ void L3_handleMode1() {
         if (!waitingAck && !waitingHostInput && currentSendIndex < NUM_PLAYERS) {
             myDestId = players[currentSendIndex].id;
             strcpy(msgStr, getRoleName(players[currentSendIndex].role));
+            strcpy(players[currentSendIndex].receivedRole, msgStr);  // 역할 저장
             pc.printf("\r\nSEND ROLE to ID %d : %s\n\n", myDestId, msgStr);
             L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), myDestId);
             waitingAck = true;

@@ -2,6 +2,7 @@
     "files.associations": {
         "*.dbclient-js": "javascript",
         "*.embeddedhtml": "html",
-        "cstring": "cpp"
+        "cstring": "cpp",
+        "cstdio": "cpp"
     }
 }
