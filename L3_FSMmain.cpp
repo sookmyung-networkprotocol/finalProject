@@ -430,7 +430,7 @@ void L3_FSMrun(void)
                     waitingAck = true;
                     }
 
-
+                }
             // 2. 투표 메시지 전송 단계 (호스트)
             if (myId == 1 && change_state == 1) {
                 // 플레이어에게 투표 요청 메시지 전송
