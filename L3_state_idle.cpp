@@ -37,8 +37,12 @@ void L3_handleMatch() {
         }
         change_state = 1;
         main_state = MODE_1;
+    } else {
+        // 게스트도 상태 전이 필요
+        main_state = MODE_1;
     }
 }
+
 
 void L3_handleMode1() {
     static bool waitingAck = false;
