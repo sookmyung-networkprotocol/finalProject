@@ -91,6 +91,7 @@ void L3_handleMode1() {
                 if (currentSendIndex >= NUM_PLAYERS) {
                     pc.printf("\r\n게임이 시작되었습니다.\n\n");
                     change_state = 2;
+                    main_state = DAY;
                 }
             } else if (c == '\r' || c == '\n') {
                 pc.printf("[INFO] 엔터 입력 무시됨. '1'을 눌러주세요.\n");
