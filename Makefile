@@ -59,6 +59,12 @@ OBJECTS += L3_LLinterface.o
 OBJECTS += L3_timer.o
 
 OBJECTS += L3_host.o
+OBJECTS += L3_shared.o
+
+OBJECTS += L3_state_day.o
+OBJECTS += L3_state_idle.o
+OBJECTS += L3_state_night.o
+OBJECTS += L3_state_vote.o
 
  SYS_OBJECTS += lib/Rx_HAL.o
  SYS_OBJECTS += lib/Rx_HHI.o
