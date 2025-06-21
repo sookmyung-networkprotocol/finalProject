@@ -94,7 +94,7 @@ void L3_FSMrun() {
     }
 
     // Guest가 vote start 신호 'S'를 수신한 경우 상태 전이
-    if (myId != 1 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
+    if (myId != 1 && main_state == DAY && L3_event_checkEventFlag(L3_event_msgRcvd)) {
         uint8_t* msg = L3_LLI_getMsgPtr();
         uint8_t size = L3_LLI_getSize();
         if (size == 1 && msg[0] == 'S') {
