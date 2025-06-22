@@ -246,251 +246,265 @@ void L3_FSMrun(void)
         // DAY 상태에서 그룹 채팅 시뮬레이션 코드 (두 번째 날)
 // L3_FSMmain.cpp의 DAY case 안에 추가할 코드
 
-        case DAY:
-        {
-            static bool chatStarted = false;
-            static int chatStep = 0;
-            static Timer chatTimer;
-            static bool waitingForVote = false;
-            static bool chatCompleted = false;
-            
-            // 두 번째 시나리오: 첫 번째 밤 이후 두 번째 낮
-            // 의사가 시민(3번)을 구해서 4명 모두 생존
-            // Player 2(Police), Player 3(Citizen), Player 7(Mafia), Player 8(Doctor)
-            // 결과: 시민(3번)이 마피아로 의심받아 처형됨
-            
-            if (!chatStarted) {
-                pc.printf("\r\n🌅 두 번째 날이 밝았습니다!\r\n");
-                pc.printf("🩺 의사가 누군가를 구해서 아무도 죽지 않았습니다.\r\n");
-                pc.printf("💬 그룹 채팅을 시작합니다.\r\n");
-                if (myId == 1) {
-                    pc.printf("🎮 호스트는 'v'를 눌러 투표 단계로 넘어갈 수 있습니다.\r\n");
-                }
-                pc.printf("💬 > ");
-                
-                chatTimer.start();
-                chatStarted = true;
-                chatStep = 0;
+        // DAY 상태에서 그룹 채팅 시뮬레이션 코드 (세 번째 날)
+// L3_FSMmain.cpp의 DAY case 안에 추가할 코드
+
+    case DAY:
+    {
+        static bool chatStarted = false;
+        static int chatStep = 0;
+        static Timer chatTimer;
+        static bool waitingForVote = false;
+        static bool chatCompleted = false;
+        
+        // 세 번째 시나리오: 두 번째 밤 이후 세 번째 낮
+        // 시민(3번) 처형 후, 의사가 경찰(2번)을 구해서 3명 생존
+        // Player 2(Police), Player 7(Mafia), Player 8(Doctor)
+        // 결과: 경찰이 마피아를 조사해서 7번이 마피아임을 밝히고 처형
+        
+        if (!chatStarted) {
+            pc.printf("\r\n🌅 세 번째 날이 밝았습니다!\r\n");
+            pc.printf("🩺 의사가 또 다시 누군가를 구했습니다.\r\n");
+            pc.printf("👥 현재 생존자: 2번, 7번, 8번 (3명)\r\n");
+            pc.printf("💬 그룹 채팅을 시작합니다.\r\n");
+            if (myId == 1) {
+                pc.printf("🎮 호스트는 'v'를 눌러 투표 단계로 넘어갈 수 있습니다.\r\n");
             }
+            pc.printf("💬 > ");
             
-            // 시뮬레이션된 그룹 채팅 메시지들 (시간차를 두고 출력)
-            if (!chatCompleted) {
-                float elapsed = chatTimer.read();
-                
-                switch(chatStep) {
-                    case 0:
-                        if (elapsed > 4.0f) {
-                            pc.printf("\r\n[Player 8] 와! 의사가 정말 잘했네요. 모두 살아있어요!\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 1:
-                        if (elapsed > 6.5f) {
-                            pc.printf("\r\n[Player 2] 네, 다행이에요. 그런데 마피아가 누구를 공격했을까요?\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 2:
-                        if (elapsed > 5.5f) {
-                            pc.printf("\r\n[Player 7] 저도 궁금해요. 의사가 정확히 맞춘 것 같네요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 3:
-                        if (elapsed > 7.0f) {
-                            pc.printf("\r\n[Player 3] 어제 저를 의심한 사람들이 있었는데... 마피아가 저를 노린 게 아닐까요?\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 4:
-                        if (elapsed > 6.0f) {
-                            pc.printf("\r\n[Player 7] 오, 그럴 수도 있겠네요. 3번이 시민이라면 마피아가 위협적으로 느꼈을 거예요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 5:
-                        if (elapsed > 8.0f) {
-                            pc.printf("\r\n[Player 2] 잠깐... 그런데 3번이 자기가 타겟이었다고 추측하는 게 좀 이상하지 않나요?\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 6:
-                        if (elapsed > 5.0f) {
-                            pc.printf("\r\n[Player 3] 어? 왜요? 어제 저를 의심했잖아요!\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 7:
-                        if (elapsed > 7.5f) {
-                            pc.printf("\r\n[Player 8] 음... 2번 말이 일리가 있어요. 일반적으로 자기가 타겟이었다고 말하지 않죠.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 8:
-                        if (elapsed > 6.5f) {
-                            pc.printf("\r\n[Player 7] 맞아요! 마피아가 오히려 자기는 안전하다는 걸 어필하려는 거 아닌가요?\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 9:
-                        if (elapsed > 4.5f) {
-                            pc.printf("\r\n[Player 3] 그게 아니에요! 저는 정말 시민이라고요!\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 10:
-                        if (elapsed > 7.0f) {
-                            pc.printf("\r\n[Player 2] 어제도 3번이 너무 적극적으로 7번을 의심했는데... 혹시 시선 돌리기였나요?\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 11:
-                        if (elapsed > 5.5f) {
-                            pc.printf("\r\n[Player 8] 생각해보니 3번이 어제 가장 공격적이었어요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 12:
-                        if (elapsed > 6.0f) {
-                            pc.printf("\r\n[Player 7] 그러게요! 저는 그냥 방어만 했는데 3번이 계속 저를 몰아세웠어요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 13:
-                        if (elapsed > 8.5f) {
-                            pc.printf("\r\n[Player 3] 아니에요! 저는 진짜 마피아를 찾으려고 했던 거예요! 7번이 수상했다니까요!\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 14:
-                        if (elapsed > 6.5f) {
-                            pc.printf("\r\n[Player 2] 하지만 지금 3번의 행동 패턴을 보면 마피아 같아요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 15:
-                        if (elapsed > 5.0f) {
-                            pc.printf("\r\n[Player 8] 저도 3번에게 투표하는 게 좋을 것 같아요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 16:
-                        if (elapsed > 7.0f) {
-                            pc.printf("\r\n[Player 7] 네, 저도 3번이 마피아라고 생각해요. 어제부터 계속 의심스러웠어요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 17:
-                        if (elapsed > 4.0f) {
-                            pc.printf("\r\n[Player 3] 이건 말이 안 돼요... 여러분 속지 마세요!\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 18:
-                        if (elapsed > 6.0f) {
-                            pc.printf("\r\n[Player 2] 죄송하지만 3번, 증거가 너무 많아요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 19:
-                        if (elapsed > 5.5f) {
-                            pc.printf("\r\n[Player 8] 투표로 결정하죠. 3번에게 투표할게요.\r\n");
-                            pc.printf("💬 > ");
-                            chatStep++;
-                            chatTimer.reset();
-                        }
-                        break;
-                        
-                    case 20:
-                        if (elapsed > 3.0f) {
-                            pc.printf("\r\n📢 그룹 채팅이 종료되었습니다.\r\n");
-                            pc.printf("🗳️ 투표 결과: 3번이 처형될 예정입니다.\r\n\r\n");
-                            chatCompleted = true;
-                            waitingForVote = true;
-                        }
-                        break;
-                }
-            }
-            
-            // 호스트가 'v' 키를 누르면 바로 투표로 넘어가기
-            if (myId == 1 && !chatCompleted && pc.readable()) {
-                char c = pc.getc();
-                if (c == 'v' || c == 'V') {
-                    pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\r\n");
-                    chatCompleted = true;
-                    waitingForVote = true;
-                }
-            }
-            
-            // 채팅이 완료되면 투표 상태로 전환
-            if (waitingForVote && chatCompleted) {
-                change_state = 0;
-                main_state = VOTE;
-                chatStarted = false;  // 다음을 위해 리셋
-                chatStep = 0;
-                waitingForVote = false;
-                chatCompleted = false;
-            }
-            
-            break;
+            chatTimer.start();
+            chatStarted = true;
+            chatStep = 0;
         }
+        
+        // 시뮬레이션된 그룹 채팅 메시지들 (시간차를 두고 출력)
+        if (!chatCompleted) {
+            float elapsed = chatTimer.read();
+            
+            switch(chatStep) {
+                case 0:
+                    if (elapsed > 4.5f) {
+                        pc.printf("\r\n[Player 8] 휴... 다행히 또 살렸네요. 의사가 정말 잘하고 있어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 1:
+                    if (elapsed > 6.0f) {
+                        pc.printf("\r\n[Player 7] 네, 정말 다행이에요. 이제 3명만 남았네요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 2:
+                    if (elapsed > 7.5f) {
+                        pc.printf("\r\n[Player 2] 여러분, 저에게 중요한 정보가 있습니다. 어젯밤에 7번을 조사했어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 3:
+                    if (elapsed > 5.0f) {
+                        pc.printf("\r\n[Player 7] 어? 저를요? 왜 저를 조사했나요?\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 4:
+                    if (elapsed > 8.0f) {
+                        pc.printf("\r\n[Player 2] 어제 3번이 처형됐는데, 3번의 행동을 다시 생각해보니 진짜 시민 같았어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 5:
+                    if (elapsed > 6.5f) {
+                        pc.printf("\r\n[Player 8] 아... 그렇다면 우리가 실수한 건가요?\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 6:
+                    if (elapsed > 7.0f) {
+                        pc.printf("\r\n[Player 2] 그래서 7번을 조사해봤는데... 결과가 나왔습니다.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 7:
+                    if (elapsed > 4.0f) {
+                        pc.printf("\r\n[Player 7] 뭐... 뭐라고 나왔나요?\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 8:
+                    if (elapsed > 6.0f) {
+                        pc.printf("\r\n[Player 2] 7번, 당신은 마피아입니다.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 9:
+                    if (elapsed > 5.5f) {
+                        pc.printf("\r\n[Player 8] 뭐?! 정말요?!\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 10:
+                    if (elapsed > 4.5f) {
+                        pc.printf("\r\n[Player 7] 그... 그럴 리가요! 2번이 거짓말하는 거 아닌가요?\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 11:
+                    if (elapsed > 7.5f) {
+                        pc.printf("\r\n[Player 2] 저는 경찰입니다. 어젯밤에 분명히 조사했고, 7번은 마피아라고 나왔어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 12:
+                    if (elapsed > 6.0f) {
+                        pc.printf("\r\n[Player 8] 2번이 경찰이라면... 그럼 정말 7번이 마피아네요!\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 13:
+                    if (elapsed > 8.0f) {
+                        pc.printf("\r\n[Player 7] 잠깐만요! 2번이 경찰이라는 보장이 어디 있어요? 마피아가 거짓말하는 거 아닌가요?\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 14:
+                    if (elapsed > 7.0f) {
+                        pc.printf("\r\n[Player 2] 생각해보세요. 어제 3번을 의심하도록 유도한 게 누구였나요? 바로 7번이었어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 15:
+                    if (elapsed > 5.5f) {
+                        pc.printf("\r\n[Player 8] 맞아요! 7번이 계속 3번을 몰아세웠어요!\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 16:
+                    if (elapsed > 6.5f) {
+                        pc.printf("\r\n[Player 7] 그건... 그건 3번이 정말 수상했기 때문이에요! 저는 시민이라고요!\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 17:
+                    if (elapsed > 8.5f) {
+                        pc.printf("\r\n[Player 2] 마피아가 시민을 마피아로 몰아가는 전형적인 전략이었네요. 어제 완전히 속았어요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 18:
+                    if (elapsed > 5.0f) {
+                        pc.printf("\r\n[Player 8] 저도 2번을 믿겠어요. 7번에게 투표할게요.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 19:
+                    if (elapsed > 4.0f) {
+                        pc.printf("\r\n[Player 7] 안 돼요! 여러분 제발 믿어주세요!\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 20:
+                    if (elapsed > 6.0f) {
+                        pc.printf("\r\n[Player 2] 죄송하지만 증거가 명확해요. 7번, 게임 끝입니다.\r\n");
+                        pc.printf("💬 > ");
+                        chatStep++;
+                        chatTimer.reset();
+                    }
+                    break;
+                    
+                case 21:
+                    if (elapsed > 3.0f) {
+                        pc.printf("\r\n📢 그룹 채팅이 종료되었습니다.\r\n");
+                        pc.printf("🗳️ 투표 결과: 7번(마피아)이 처형될 예정입니다.\r\n");
+                        pc.printf("🎉 시민 승리 예상!\r\n\r\n");
+                        chatCompleted = true;
+                        waitingForVote = true;
+                    }
+                    break;
+            }
+        }
+        
+        // 호스트가 'v' 키를 누르면 바로 투표로 넘어가기
+        if (myId == 1 && !chatCompleted && pc.readable()) {
+            char c = pc.getc();
+            if (c == 'v' || c == 'V') {
+                pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\r\n");
+                chatCompleted = true;
+                waitingForVote = true;
+            }
+        }
+        
+        // 채팅이 완료되면 투표 상태로 전환
+        if (waitingForVote && chatCompleted) {
+            change_state = 0;
+            main_state = VOTE;
+            chatStarted = false;  // 다음을 위해 리셋
+            chatStep = 0;
+            waitingForVote = false;
+            chatCompleted = false;
+        }
+        
+        break;
+    }
 
         case NIGHT:
             // 대기 
