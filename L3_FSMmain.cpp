@@ -240,455 +240,214 @@ void L3_FSMrun(void)
             break;
         }
 
-        case DAY:
+        // DAY 상태에서 그룹 채팅 시뮬레이션 코드
+// L3_FSMmain.cpp의 DAY case 안에 추가할 코드
+
+            case DAY:
         {
-            pc.printf("\r\n낮이 되었습니다.\n\n");
-            // 단체 채팅 구현
-
+            static bool chatStarted = false;
+            static int chatStep = 0;
+            static Timer chatTimer;
+            static bool waitingForVote = false;
+            static bool chatCompleted = false;
             
-            // 단체 채팅 끝난 후 모드 변경
-            change_state = 0;
-            main_state = VOTE;
-            break;
-        
-        }
-        
-       case VOTE:
-        {
-            static int voteDoneCount = 0;  // 투표 완료한 사람 수
-            static int aliveCount = 0;      // 살아있는 사람 수
-            static bool gameOver = false;  // 게임 종료 여부
-
-            #define MAX_PLAYER_ID 9
-            static int voteResults[MAX_PLAYER_ID + 1] = {0};
-            static bool waitingAck = false;
-            static bool waitingHostInput = false;
-            static int currentSendIndex = 0;
-            static int aliveIDs[NUM_PLAYERS];
-            static bool voteCompleted[NUM_PLAYERS] = {false};
-
-            static int maxVotedId = -1;
-
-            static char msgStr[512]; // 메시지 버퍼 약간 키움
+            // 첫 번째 시나리오: 게임 시작 후 첫 번째 낮
+            // Player 2(Police), Player 3(Citizen), Player 7(Mafia), Player 8(Doctor)
+            // 결과: 3과 7로 2대 2 득표로 아무도 처형되지 않음
             
-            // 1. 초기화: 호스트가 살아있는 목록 구성 및 변수 초기화
-            if (myId == 1 && change_state == 0) {
-                aliveCount = 0;
-                voteDoneCount = 0;
-                currentSendIndex = 0;
-                waitingAck = false;
-                waitingHostInput = false;
-
-                for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (!dead[i]) {  // 죽지 않은 플레이어만 포함
-                        aliveIDs[aliveCount++] = players[i].id;
-                    }
-                    players[i].Voted = 0;
-                    voteCompleted[i] = false;
-                    voteResults[i] = 0;
+            if (!chatStarted) {
+                pc.printf("\r\n🌞 낮이 되었습니다. 그룹 채팅을 시작합니다.\r\n");
+                if (myId == 1) {
+                    pc.printf("🎮 호스트는 'v'를 눌러 투표 단계로 넘어갈 수 있습니다.\r\n");
                 }
-
-                pc.printf("\r\n📢 투표를 시작합니다.\r\n");
-                pc.printf("\r\n🧍 살아있는 플레이어 목록:\r\n");
-                for (int i = 0; i < aliveCount; i++) {
-                    pc.printf("Player ID: %d ", aliveIDs[i]);
-                }
-                pc.printf("\r\n-----------------------------------------\r\n");
-
-                change_state = 1;
+                pc.printf("✏️ 메시지를 입력하고 Enter를 누르세요.\r\n");
+                pc.printf("💬 > ");
+                
+                chatTimer.start();
+                chatStarted = true;
+                chatStep = 0;
             }
-
-
-            // 2. 투표 메시지 전송 단계 (호스트)
-            if (myId == 1 && change_state == 1) {
-                // 플레이어에게 투표 요청 메시지 전송
-                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
-                    int destId = aliveIDs[currentSendIndex];
-                    msgStr[0] = '\0';
-
-                    sprintf(msgStr, "투표하세요. 본인을 제외한 ID 중 선택: ");
-                    for (int i = 0; i < aliveCount; i++) {
-                        if (aliveIDs[i] != destId) {
-                            char idStr[4];
-                            sprintf(idStr, "%d ", aliveIDs[i]);
-                            strcat(msgStr, idStr);
+            
+            // 시뮬레이션된 그룹 채팅 메시지들 (시간차를 두고 출력)
+            if (!chatCompleted) {
+                float elapsed = chatTimer.read();
+                
+                switch(chatStep) {
+                    case 0:
+                        if (elapsed > 2.0f) {
+                            pc.printf("\r\n[Player 2] 안녕하세요 여러분! 첫 날이네요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    }
-
-                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\r\n[Host] %d번 플레이어에게 투표 요청: %s", destId, msgStr);
-
-                    waitingAck = true;
-                }
-
-                // 플레이어로부터 투표 응답 수신 처리
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                    int fromId = L3_LLI_getSrcId();
-                    int voteTo = atoi((char*)dataPtr);
-
-                    // 투표 집계 
-                    if (voteTo >= 0 && voteTo <= MAX_PLAYER_ID) {
-                        voteResults[voteTo]++;
-                    }
-
-
-                    voteDoneCount++;
-                    voteCompleted[currentSendIndex] = true;
-
-                    pc.printf("\r\n🗳️ %d번 플레이어가 %d번에게 투표했습니다.", fromId, voteTo);
-
-                    waitingAck = false;
-                    waitingHostInput = true;
-
-                    pc.printf("\r\n▶ 다음 플레이어에게 전송하려면 '1'을 입력하세요.");
-
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
-                }
-
-                // 호스트가 1 입력하면 다음 플레이어로 진행
-                if (waitingHostInput && pc.readable()) {
-                    char c = pc.getc();
-                    if (c == '1') {
-                        currentSendIndex++;
-                        waitingHostInput = false;
-                        pc.printf("\r\n✅ 다음 플레이어로 이동합니다.");
-
-                        // 모든 플레이어 투표 완료 시 상태 전환
-                        if (currentSendIndex >= aliveCount) {
-                            pc.printf("\r\n✅ 모든 투표 완료! 결과:\r\n");
-                            for (int i = 0; i < NUM_PLAYERS; i++) {
-                                if (players[i].isAlive) {
-                                    pc.printf("Player %d: %d표\n", players[i].id, voteResults[players[i].id]);
-                                }
-                            }
-                            change_state = 2;
-                            currentSendIndex = 0;
-                            waitingAck = false;
-                            waitingHostInput = false;
-
+                        break;
+                        
+                    case 1:
+                        if (elapsed > 3.5f) {
+                            pc.printf("\r\n[Player 8] 네, 안녕하세요! 마피아가 누구일까요?\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    } else {
-                        pc.printf("\r\n❗ '1'을 입력해야 진행됩니다.");
-                    }
-                }
-            }
-
-            // 3. 게스트 측: 투표 요청 메시지 수신 → 투표 입력 → 전송
-            if (myId != 1 && change_state < 2 && L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-
-                pc.printf("\r\n📨 투표 메시지 수신: %.*s", size, dataPtr);
-
-                // 유효한 투표 대상 ID 파싱
-                int validIDs[NUM_PLAYERS];
-                int validIDCount = 0;
-                for (int i = 0; i < size; i++) {
-                    if (dataPtr[i] >= '0' && dataPtr[i] <= '9') {
-                        int id = dataPtr[i] - '0';
-                        if (id != myId) {
-                            validIDs[validIDCount++] = id;
+                        break;
+                        
+                    case 2:
+                        if (elapsed > 2.8f) {
+                            pc.printf("\r\n[Player 7] 첫 날이라 정보가 별로 없네요 ㅠㅠ\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    }
-                }
-
-                int valid = 0;
-                int voteTo = -1;
-
-                while (!valid) {
-                    pc.printf("\r\n📝 투표할 플레이어 ID를 입력하세요: ");
-                    while (!pc.readable());
-                    char ch = pc.getc();
-                    pc.printf("%c", ch);
-
-                    if (ch < '0' || ch > '9') {
-                        pc.printf("\r\n❗ 숫자가 아닙니다. 다시 입력하세요.");
-                        continue;
-                    }
-
-                    voteTo = ch - '0';
-
-                    if (voteTo == myId) {
-                        pc.printf("\r\n❗ 자신에게는 투표할 수 없습니다.");
-                        continue;
-                    }
-
-                    bool isValid = false;
-                    for (int i = 0; i < validIDCount; i++) {
-                        if (validIDs[i] == voteTo) {
-                            isValid = true;
-                            break;
+                        break;
+                        
+                    case 3:
+                        if (elapsed > 4.2f) {
+                            pc.printf("\r\n[Player 3] 그래도 뭔가 단서가 있을 거예요. 7번이 좀 수상해 보이는데...\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    }
-
-                    if (!isValid) {
-                        pc.printf("\r\n❗ 해당 ID는 유효한 투표 대상이 아닙니다. 다시 입력하세요.");
-                        continue;
-                    }
-
-                    valid = 1;
-                }
-
-                // 투표 결과 전송 (Host = 1)
-                char ackMsg[4];
-                sprintf(ackMsg, "%d", voteTo);
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, strlen(ackMsg), 1);
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-
-                change_state = 2;
-            }
-
-            // 4. 투표 결과 전송 단계 (호스트)
-            if (myId == 1 && change_state == 2) {
-                static char msgStr[512]; // 결과 메시지 (한 번만 구성)
-                static bool msgGenerated = false;
-                static int currentSendIndex = 0;
-                static bool waitingAck = false;
-                static bool waitingHostInput = false;
-
-                if (!msgGenerated) {
-                    // 메시지 구성 시작
-                    msgStr[0] = '\0';
-                    strcat(msgStr, "투표 결과: ");
-
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (players[i].isAlive) {
-                            char buf[32];
-                            sprintf(buf, "[%d: %d표] ", players[i].id, voteResults[players[i].id]);
-                            strcat(msgStr, buf);
+                        break;
+                        
+                    case 4:
+                        if (elapsed > 3.0f) {
+                            pc.printf("\r\n[Player 7] 저요?? 왜요? 저는 그냥 시민인데요!\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    }
-
-                    // 최다 득표자 계산
-                    int maxVotes = 0;
-                    int maxVotedId = -1;
-                    bool tie = false;
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        int id = players[i].id;
-                        if (!players[i].isAlive) continue;
-
-                        if (voteResults[id] > maxVotes) {
-                            maxVotes = voteResults[id];
-                            maxVotedId = id;
-                            tie = false;
-                        } else if (voteResults[id] == maxVotes && id != maxVotedId) {
-                            tie = true;
+                        break;
+                        
+                    case 5:
+                        if (elapsed > 2.5f) {
+                            pc.printf("\r\n[Player 2] 음... 7번 말투가 좀 방어적인 것 같긴 해요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    }
-
-                    // 투표 결과 메시지 추가
-                    if (!tie && maxVotedId != -1) {
-                        strcat(msgStr, "\n💀 ");
-                        char killBuf[64];
-                        sprintf(killBuf, "%d번 플레이어가 처형되었습니다.", maxVotedId);
-                        strcat(msgStr, killBuf);
-
-                        // 실제 제거 처리
-                        for (int i = 0; i < NUM_PLAYERS; i++) {
-                            if (players[i].id == maxVotedId) {
-                                players[i].isAlive = false;
-                                break;
-                            }
+                        break;
+                        
+                    case 6:
+                        if (elapsed > 3.8f) {
+                            pc.printf("\r\n[Player 8] 근데 3번도 너무 성급하게 의심하는 것 같은데요?\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    } else {
-                        strcat(msgStr, "\n⚖️ 동점으로 아무도 죽지 않았습니다.");
-                    }
-
-                    // 생존 마피아/시민 수 계산
-                    int num_mafia = 0;
-                    int num_citizen = 0;
-                    for (int i = 0; i < NUM_PLAYERS; i++) {
-                        if (!players[i].isAlive) continue;
-
-                        if (players[i].role == ROLE_MAFIA)
-                            num_mafia++;
-                        else
-                            num_citizen++;
-                    }
-
-                    // 게임 종료 여부 판단
-                    if (num_mafia == 0) {
-                        strcat(msgStr, "\n🎉 시민 승리! 게임 종료.");
-                        gameOver = true;
-                    } else if (num_citizen <= num_mafia) {
-                        strcat(msgStr, "\n💀 마피아 승리! 게임 종료.");
-                        gameOver = true;
-                    } else {
-                        strcat(msgStr, "\n☀️ 낮으로 넘어갑니다.");
-                    }
-
-                    msgGenerated = true;
-                }
-
-                // 메시지 전송
-                if (!waitingAck && !waitingHostInput && currentSendIndex < aliveCount) {
-                    int destId = aliveIDs[currentSendIndex];
-                    L3_LLI_dataReqFunc((uint8_t*)msgStr, strlen(msgStr), destId);
-                    pc.printf("\n[Host] %d번 플레이어에게 투표 결과 전송: %s\n", destId, msgStr);
-                    waitingAck = true;
-                }
-
-                // ACK 수신 처리
-                if (L3_event_checkEventFlag(L3_event_msgRcvd)) {
-                    uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                    uint8_t size = L3_LLI_getSize();
-
-                    if (size == 3 && strncmp((char*)dataPtr, "ACK", 3) == 0 && waitingAck) {
-                        pc.printf("ACK 수신됨 (플레이어 ID: %d)\n", aliveIDs[currentSendIndex]);
-                        waitingAck = false;
-                        waitingHostInput = true;
-                        pc.printf("다음 플레이어에게 전송하려면 '1'을 입력하세요:\n");
-                    }
-
-                    L3_event_clearEventFlag(L3_event_msgRcvd);
-                }
-
-                // HOST 입력 처리
-                if (waitingHostInput && pc.readable()) {
-                    char c = pc.getc();
-                    if (c == '1') {
-                        currentSendIndex++;
-                        waitingHostInput = false;
-                        pc.printf("✅ 다음 플레이어로 이동합니다.\n");
-
-                        if (currentSendIndex >= aliveCount) {
-                            pc.printf("✅ 모든 투표 결과 전송 완료!\n");
-                            msgGenerated = false;
-                            currentSendIndex = 0;
-                            change_state = 3;
+                        break;
+                        
+                    case 7:
+                        if (elapsed > 2.2f) {
+                            pc.printf("\r\n[Player 3] 아니에요! 저는 정말 시민이라서 마피아를 찾으려는 거예요!\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
                         }
-                    } else {
-                        pc.printf("❗ '1'을 입력해야 진행됩니다.\n");
-                    }
+                        break;
+                        
+                    case 8:
+                        if (elapsed > 4.0f) {
+                            pc.printf("\r\n[Player 7] 오히려 3번이 저를 마피아로 몰아가려는 게 수상해요. 3번이 마피아 아닌가요?\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 9:
+                        if (elapsed > 3.5f) {
+                            pc.printf("\r\n[Player 2] 둘 다 서로를 의심하고 있네요... 어려운 상황이에요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 10:
+                        if (elapsed > 2.8f) {
+                            pc.printf("\r\n[Player 8] 저는 7번에게 한 표, 2번은 어떻게 생각하세요?\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 11:
+                        if (elapsed > 3.2f) {
+                            pc.printf("\r\n[Player 2] 음... 저도 7번이 조금 수상하긴 해요. 하지만 확신은 없어요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 12:
+                        if (elapsed > 4.0f) {
+                            pc.printf("\r\n[Player 7] 이건 말이 안 돼요! 저는 진짜 시민이에요. 3번이 마피아라니까요!\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 13:
+                        if (elapsed > 2.5f) {
+                            pc.printf("\r\n[Player 3] 아니에요! 7번 말투 보세요. 완전 마피아 같잖아요!\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 14:
+                        if (elapsed > 3.8f) {
+                            pc.printf("\r\n[Player 8] 둘 다 너무 감정적이 되는 것 같아요. 침착하게 생각해봐요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 15:
+                        if (elapsed > 2.0f) {
+                            pc.printf("\r\n[Player 2] 그래요, 투표로 결정하는 게 좋겠어요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 16:
+                        if (elapsed > 1.5f) {
+                            pc.printf("\r\n📢 그룹 채팅이 종료되었습니다.\r\n");
+                            pc.printf("🗳️ 투표 단계로 넘어갑니다.\r\n\r\n");
+                            chatCompleted = true;
+                            waitingForVote = true;
+                        }
+                        break;
                 }
             }
-
-
-            // 5. 게스트 - 투표 결과 수신 및 ACK 전송
-            if (myId != 1 && change_state == 2 && L3_event_checkEventFlag(L3_event_msgRcvd))  {
-                uint8_t* dataPtr = L3_LLI_getMsgPtr();
-                uint8_t size = L3_LLI_getSize();
-
-                pc.printf("\r\n[게스트 %d] 투표 결과 수신:\n%.*s\n", myId, size, dataPtr);
-
-                int killedId = -1;
-                // "💀 <id>번 플레이어가 처형되었습니다." 부분 찾기
-                char* killPos = strstr((char*)dataPtr, "💀 ");
-                if (killPos != NULL) {
-                    // 처형된 플레이어 ID 파싱
-                    int parsedId = -1;
-                    sscanf(killPos, "💀 %d번 플레이어가 처형되었습니다.", &parsedId);
-                    killedId = parsedId;
-                    pc.printf("💀 %d번 플레이어가 처형됨\n", killedId);
-                } else {
-                    pc.printf("⚖️ 동점으로 처형된 플레이어 없음\n");
-                }
-
-                // 자기 자신이 죽었으면 상태 변경
-                if (killedId == myId) {
-                    pc.printf("❗ 당신은 처형되었습니다.\n");
-                    idead = true;
-                }
-
-                // 게임 종료 메시지 확인
-                if (strstr((char*)dataPtr, "시민 승리") != NULL) {
-                    pc.printf("🎉 시민 승리! 게임 종료 처리 필요\n");
-                    gameOver = true;
-                } else if (strstr((char*)dataPtr, "마피아 승리") != NULL) {
-                    pc.printf("💀 마피아 승리! 게임 종료 처리 필요\n");
-                    gameOver = true;
-                }
-
-                // ACK 전송
-                const char ackMsg[] = "ACK";
-                L3_LLI_dataReqFunc((uint8_t*)ackMsg, sizeof(ackMsg) - 1, 1);
-                pc.printf("[게스트 %d] ACK 전송 완료\n", myId);
-
-                L3_event_clearEventFlag(L3_event_msgRcvd);
-
-                change_state = 3;  // 투표 종료 상태로 변경
-            }
-
-
-            // 6. 모두 상태 전환: 투표 종료 시 낮(주간) 상태로 전환
-           if (change_state == 3) {
-            // 💀 밤에 마피아가 선택한 타겟 적용
-            int mafiaTarget = -1;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].role == ROLE_MAFIA && players[i].isAlive) {
-                    mafiaTarget = players[i].sentVoteId;
-                    break;
+            
+            // 호스트가 'v' 키를 누르면 바로 투표로 넘어가기
+            if (myId == 1 && !chatCompleted && pc.readable()) {
+                char c = pc.getc();
+                if (c == 'v' || c == 'V') {
+                    pc.printf("\r\n🗳️ 투표 단계로 이동합니다.\r\n");
+                    chatCompleted = true;
+                    waitingForVote = true;
                 }
             }
-
-            // 🩺 의사 효과 반영: 마피아 타겟이 doctorTarget이면 무효, 아니면 죽음
-            if (mafiaTarget != -1) {
-                for (int i = 0; i < NUM_PLAYERS; i++) {
-                    if (players[i].id == mafiaTarget &&
-                        players[i].isAlive &&
-                        players[i].id != doctorTarget)
-                    {
-                        players[i].isAlive = false;
-                        pc.printf("💀 밤에 %d번 플레이어가 죽었습니다.\n", players[i].id);
-                    }
-                }
+            
+            // 채팅이 완료되면 투표 상태로 전환
+            if (waitingForVote && chatCompleted) {
+                change_state = 0;
+                main_state = VOTE;
+                chatStarted = false;  // 다음을 위해 리셋
+                chatStep = 0;
+                waitingForVote = false;
+                chatCompleted = false;
             }
-
-            // 🔁 idead 동기화 (자기 자신이 죽었을 경우)
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                if (players[i].id == myId && !players[i].isAlive) {
-                    idead = true;
-                }
-            }
-
-            // 🔄 sentVoteId, doctorTarget 초기화
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                players[i].sentVoteId = -1;
-            }
-            doctorTarget = -1;
-
-            // 🧹 투표 관련 변수 초기화
-            voteDoneCount = 0;
-            for (int i = 0; i < NUM_PLAYERS; i++) {
-                voteResults[i] = 0;
-                voteCompleted[i] = false;
-                players[i].Voted = 0;
-            }
-
-            // 🔄 상태 전환 준비
-            change_state = 0;
-
-            // 🏁 게임 종료 여부 체크
-            if (gameOver) {
-                main_state = OVER;
-            } else if (myId == 1) {
-                main_state = MAFIA;
-            } else {
-                // 디버깅용 출력
-                pc.printf("내 번호는 %d입니다.\n", myId);
-                pc.printf("내 역할은 %s입니다.\n", myRoleName);
-                pc.printf("내 생존 상태: %s\n", idead ? "죽음" : "살아있음");
-
-                // 살아있을 경우 역할별 분기
-                if (!idead) {
-                    if (strcmp(myRoleName, "Mafia") == 0)
-                        main_state = MAFIA;
-                    else if (strcmp(myRoleName, "Police") == 0)
-                        main_state = POLICE;
-                    else if (strcmp(myRoleName, "Doctor") == 0)
-                        main_state = DOCTOR;
-                    else
-                        main_state = NIGHT;
-                } else {
-                    main_state = NIGHT;
-                }
-            }
-        }
-
-
-
-
+            
             break;
         }
 
