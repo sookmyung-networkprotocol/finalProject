@@ -243,7 +243,10 @@ void L3_FSMrun(void)
         // DAY 상태에서 그룹 채팅 시뮬레이션 코드
 // L3_FSMmain.cpp의 DAY case 안에 추가할 코드
 
-            case DAY:
+        // DAY 상태에서 그룹 채팅 시뮬레이션 코드 (두 번째 날)
+// L3_FSMmain.cpp의 DAY case 안에 추가할 코드
+
+        case DAY:
         {
             static bool chatStarted = false;
             static int chatStep = 0;
@@ -251,16 +254,18 @@ void L3_FSMrun(void)
             static bool waitingForVote = false;
             static bool chatCompleted = false;
             
-            // 첫 번째 시나리오: 게임 시작 후 첫 번째 낮
+            // 두 번째 시나리오: 첫 번째 밤 이후 두 번째 낮
+            // 의사가 시민(3번)을 구해서 4명 모두 생존
             // Player 2(Police), Player 3(Citizen), Player 7(Mafia), Player 8(Doctor)
-            // 결과: 3과 7로 2대 2 득표로 아무도 처형되지 않음
+            // 결과: 시민(3번)이 마피아로 의심받아 처형됨
             
             if (!chatStarted) {
-                pc.printf("\r\n🌞 낮이 되었습니다. 그룹 채팅을 시작합니다.\r\n");
+                pc.printf("\r\n🌅 두 번째 날이 밝았습니다!\r\n");
+                pc.printf("🩺 의사가 누군가를 구해서 아무도 죽지 않았습니다.\r\n");
+                pc.printf("💬 그룹 채팅을 시작합니다.\r\n");
                 if (myId == 1) {
                     pc.printf("🎮 호스트는 'v'를 눌러 투표 단계로 넘어갈 수 있습니다.\r\n");
                 }
-                pc.printf("✏️ 메시지를 입력하고 Enter를 누르세요.\r\n");
                 pc.printf("💬 > ");
                 
                 chatTimer.start();
@@ -274,8 +279,8 @@ void L3_FSMrun(void)
                 
                 switch(chatStep) {
                     case 0:
-                        if (elapsed > 2.0f) {
-                            pc.printf("\r\n[Player 2] 안녕하세요 여러분! 첫 날이네요.\r\n");
+                        if (elapsed > 4.0f) {
+                            pc.printf("\r\n[Player 8] 와! 의사가 정말 잘했네요. 모두 살아있어요!\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -283,8 +288,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 1:
-                        if (elapsed > 3.5f) {
-                            pc.printf("\r\n[Player 8] 네, 안녕하세요! 마피아가 누구일까요?\r\n");
+                        if (elapsed > 6.5f) {
+                            pc.printf("\r\n[Player 2] 네, 다행이에요. 그런데 마피아가 누구를 공격했을까요?\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -292,8 +297,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 2:
-                        if (elapsed > 2.8f) {
-                            pc.printf("\r\n[Player 7] 첫 날이라 정보가 별로 없네요 ㅠㅠ\r\n");
+                        if (elapsed > 5.5f) {
+                            pc.printf("\r\n[Player 7] 저도 궁금해요. 의사가 정확히 맞춘 것 같네요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -301,8 +306,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 3:
-                        if (elapsed > 4.2f) {
-                            pc.printf("\r\n[Player 3] 그래도 뭔가 단서가 있을 거예요. 7번이 좀 수상해 보이는데...\r\n");
+                        if (elapsed > 7.0f) {
+                            pc.printf("\r\n[Player 3] 어제 저를 의심한 사람들이 있었는데... 마피아가 저를 노린 게 아닐까요?\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -310,8 +315,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 4:
-                        if (elapsed > 3.0f) {
-                            pc.printf("\r\n[Player 7] 저요?? 왜요? 저는 그냥 시민인데요!\r\n");
+                        if (elapsed > 6.0f) {
+                            pc.printf("\r\n[Player 7] 오, 그럴 수도 있겠네요. 3번이 시민이라면 마피아가 위협적으로 느꼈을 거예요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -319,8 +324,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 5:
-                        if (elapsed > 2.5f) {
-                            pc.printf("\r\n[Player 2] 음... 7번 말투가 좀 방어적인 것 같긴 해요.\r\n");
+                        if (elapsed > 8.0f) {
+                            pc.printf("\r\n[Player 2] 잠깐... 그런데 3번이 자기가 타겟이었다고 추측하는 게 좀 이상하지 않나요?\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -328,8 +333,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 6:
-                        if (elapsed > 3.8f) {
-                            pc.printf("\r\n[Player 8] 근데 3번도 너무 성급하게 의심하는 것 같은데요?\r\n");
+                        if (elapsed > 5.0f) {
+                            pc.printf("\r\n[Player 3] 어? 왜요? 어제 저를 의심했잖아요!\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -337,8 +342,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 7:
-                        if (elapsed > 2.2f) {
-                            pc.printf("\r\n[Player 3] 아니에요! 저는 정말 시민이라서 마피아를 찾으려는 거예요!\r\n");
+                        if (elapsed > 7.5f) {
+                            pc.printf("\r\n[Player 8] 음... 2번 말이 일리가 있어요. 일반적으로 자기가 타겟이었다고 말하지 않죠.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -346,8 +351,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 8:
-                        if (elapsed > 4.0f) {
-                            pc.printf("\r\n[Player 7] 오히려 3번이 저를 마피아로 몰아가려는 게 수상해요. 3번이 마피아 아닌가요?\r\n");
+                        if (elapsed > 6.5f) {
+                            pc.printf("\r\n[Player 7] 맞아요! 마피아가 오히려 자기는 안전하다는 걸 어필하려는 거 아닌가요?\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -355,8 +360,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 9:
-                        if (elapsed > 3.5f) {
-                            pc.printf("\r\n[Player 2] 둘 다 서로를 의심하고 있네요... 어려운 상황이에요.\r\n");
+                        if (elapsed > 4.5f) {
+                            pc.printf("\r\n[Player 3] 그게 아니에요! 저는 정말 시민이라고요!\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -364,8 +369,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 10:
-                        if (elapsed > 2.8f) {
-                            pc.printf("\r\n[Player 8] 저는 7번에게 한 표, 2번은 어떻게 생각하세요?\r\n");
+                        if (elapsed > 7.0f) {
+                            pc.printf("\r\n[Player 2] 어제도 3번이 너무 적극적으로 7번을 의심했는데... 혹시 시선 돌리기였나요?\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -373,8 +378,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 11:
-                        if (elapsed > 3.2f) {
-                            pc.printf("\r\n[Player 2] 음... 저도 7번이 조금 수상하긴 해요. 하지만 확신은 없어요.\r\n");
+                        if (elapsed > 5.5f) {
+                            pc.printf("\r\n[Player 8] 생각해보니 3번이 어제 가장 공격적이었어요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -382,8 +387,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 12:
-                        if (elapsed > 4.0f) {
-                            pc.printf("\r\n[Player 7] 이건 말이 안 돼요! 저는 진짜 시민이에요. 3번이 마피아라니까요!\r\n");
+                        if (elapsed > 6.0f) {
+                            pc.printf("\r\n[Player 7] 그러게요! 저는 그냥 방어만 했는데 3번이 계속 저를 몰아세웠어요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -391,8 +396,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 13:
-                        if (elapsed > 2.5f) {
-                            pc.printf("\r\n[Player 3] 아니에요! 7번 말투 보세요. 완전 마피아 같잖아요!\r\n");
+                        if (elapsed > 8.5f) {
+                            pc.printf("\r\n[Player 3] 아니에요! 저는 진짜 마피아를 찾으려고 했던 거예요! 7번이 수상했다니까요!\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -400,8 +405,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 14:
-                        if (elapsed > 3.8f) {
-                            pc.printf("\r\n[Player 8] 둘 다 너무 감정적이 되는 것 같아요. 침착하게 생각해봐요.\r\n");
+                        if (elapsed > 6.5f) {
+                            pc.printf("\r\n[Player 2] 하지만 지금 3번의 행동 패턴을 보면 마피아 같아요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -409,8 +414,8 @@ void L3_FSMrun(void)
                         break;
                         
                     case 15:
-                        if (elapsed > 2.0f) {
-                            pc.printf("\r\n[Player 2] 그래요, 투표로 결정하는 게 좋겠어요.\r\n");
+                        if (elapsed > 5.0f) {
+                            pc.printf("\r\n[Player 8] 저도 3번에게 투표하는 게 좋을 것 같아요.\r\n");
                             pc.printf("💬 > ");
                             chatStep++;
                             chatTimer.reset();
@@ -418,9 +423,45 @@ void L3_FSMrun(void)
                         break;
                         
                     case 16:
-                        if (elapsed > 1.5f) {
+                        if (elapsed > 7.0f) {
+                            pc.printf("\r\n[Player 7] 네, 저도 3번이 마피아라고 생각해요. 어제부터 계속 의심스러웠어요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 17:
+                        if (elapsed > 4.0f) {
+                            pc.printf("\r\n[Player 3] 이건 말이 안 돼요... 여러분 속지 마세요!\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 18:
+                        if (elapsed > 6.0f) {
+                            pc.printf("\r\n[Player 2] 죄송하지만 3번, 증거가 너무 많아요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 19:
+                        if (elapsed > 5.5f) {
+                            pc.printf("\r\n[Player 8] 투표로 결정하죠. 3번에게 투표할게요.\r\n");
+                            pc.printf("💬 > ");
+                            chatStep++;
+                            chatTimer.reset();
+                        }
+                        break;
+                        
+                    case 20:
+                        if (elapsed > 3.0f) {
                             pc.printf("\r\n📢 그룹 채팅이 종료되었습니다.\r\n");
-                            pc.printf("🗳️ 투표 단계로 넘어갑니다.\r\n\r\n");
+                            pc.printf("🗳️ 투표 결과: 3번이 처형될 예정입니다.\r\n\r\n");
                             chatCompleted = true;
                             waitingForVote = true;
                         }
@@ -450,7 +491,6 @@ void L3_FSMrun(void)
             
             break;
         }
-
 
         case NIGHT:
             // 대기 
